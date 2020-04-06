@@ -1,3 +1,4 @@
 .idea/*
 !.idea/runConfigurations/
 *_gen.go
+statik/
