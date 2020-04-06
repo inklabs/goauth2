@@ -5,24 +5,32 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
+	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/provider/inmemorystore"
+	"github.com/inklabs/rangedb/provider/jsonrecordserializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/inklabs/goauth2"
 	"github.com/inklabs/goauth2/web"
 	"github.com/inklabs/goauth2/web/pkg/templateloader/provider/livefilesystemloader"
 	"github.com/inklabs/goauth2/web/webtest"
 )
 
 const (
-	clientId         = "9a88a97ad2834c0b987d734482499ee5"
-	redirectUri      = "https://www.example.com"
-	codeResponseType = "code"
-	state            = "some-state"
-	scope            = "read_write"
-	emailAddress     = "john@example.com"
-	password         = "pass123"
+	clientID               = "fe3c986043cd4a0ebe5e181ba2baa500"
+	clientSecret           = "f29a2881e697403395e53ca173caa217"
+	adminUserID            = "873aeb9386724213b4c1410bce9f838c"
+	redirectUri            = "https://www.example.com"
+	codeResponseType       = "code"
+	state                  = "some-state"
+	scope                  = "read_write"
+	accessToken            = "f5bb89d486ee458085e476871b177ff4"
+	refreshToken           = "df00e449f5f4489ea2d26e18f0015274"
+	clientCredentialsGrant = "client_credentials"
 )
 
 func Test_Login_ServesLoginForm(t *testing.T) {
@@ -43,7 +51,7 @@ func Test_Login_ServesLoginForm(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Result().StatusCode)
 	assert.Equal(t, "HTTP/1.1", w.Result().Proto)
 	assert.Contains(t, body, "form")
-	assert.Contains(t, body, clientId)
+	assert.Contains(t, body, clientID)
 	assert.Contains(t, body, redirectUri)
 	assert.Contains(t, body, codeResponseType)
 	assert.Contains(t, body, scope)
@@ -70,14 +78,157 @@ func Test_Login_FailsToServeLoginForm(t *testing.T) {
 	assert.Contains(t, body, "internal error")
 }
 
+func Test_TokenEndpoint(t *testing.T) {
+	const tokenUri = "/token"
+	t.Run("Client Credentials Grant Type with client application on-boarded", func(t *testing.T) {
+		// Given
+		eventStore := getStoreWithEvents(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+		)
+		app := web.New(
+			web.WithGoauth2App(goauth2.New(goauth2.WithStore(eventStore))),
+		)
+		params := &url.Values{}
+		params.Set("grant_type", clientCredentialsGrant)
+		params.Set("scope", scope)
+
+		t.Run("issues access and refresh token", func(t *testing.T) {
+			// Given
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+			expiresAt := 1574371565
+			expectedBody := fmt.Sprintf(`{
+				"access_token": "%s",
+				"expires_at": %d,
+				"token_type": "Bearer",
+				"scope": "%s",
+				"refresh_token": "%s"
+			}`, accessToken, expiresAt, scope, refreshToken)
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusOK, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.JSONEq(t, expectedBody, w.Body.String())
+		})
+
+		t.Run("fails with missing client id and secret in request", func(t *testing.T) {
+			// Given
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_client"}`, w.Body.String())
+		})
+
+		t.Run("fails with invalid client application id", func(t *testing.T) {
+			// Given
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r.SetBasicAuth("invalid-client-id", clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_client"}`, w.Body.String())
+		})
+
+		t.Run("fails with invalid client application secret", func(t *testing.T) {
+			// Given
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, "invalid-client-secret")
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_client"}`, w.Body.String())
+		})
+	})
+
+	t.Run("fails with invalid HTTP form request", func(t *testing.T) {
+		// Given
+		app := web.New()
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader("%invalid-form"))
+		r.SetBasicAuth(clientID, clientSecret)
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+		assert.Contains(t, w.Body.String(), "invalid request")
+	})
+
+	t.Run("fails with unsupported grant type", func(t *testing.T) {
+		// Given
+		app := web.New()
+		params := &url.Values{}
+		params.Set("grant_type", "invalid-grant-type")
+		params.Set("scope", scope)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+		r.SetBasicAuth(clientID, clientSecret)
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+		assertJsonHeaders(t, w)
+		assert.Equal(t, `{"error":"unsupported_grant_type"}`, w.Body.String())
+	})
+}
+
 func getAuthorizeParams() *url.Values {
 	params := &url.Values{}
-	params.Set("email", emailAddress)
-	params.Set("password", password)
-	params.Set("client_id", clientId)
+	params.Set("client_id", clientID)
 	params.Set("redirect_uri", redirectUri)
 	params.Set("response_type", codeResponseType)
 	params.Set("scope", scope)
 	params.Set("state", state)
 	return params
+}
+
+func assertJsonHeaders(t *testing.T, w *httptest.ResponseRecorder) {
+	assert.Equal(t, "application/json;charset=UTF-8", w.Header().Get("Content-Type"))
+	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+	assert.Equal(t, "no-cache", w.Header().Get("Pragma"))
+}
+
+func getStoreWithEvents(events ...rangedb.Event) rangedb.Store {
+	serializer := jsonrecordserializer.New()
+	goauth2.BindEvents(serializer)
+	eventStore := inmemorystore.New(inmemorystore.WithSerializer(serializer))
+	for _, event := range events {
+		_ = eventStore.Save(event, nil)
+	}
+
+	return eventStore
 }
