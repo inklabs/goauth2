@@ -120,10 +120,10 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 
 	switch grantType {
 	case "client_credentials":
-		events := a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
+		events := goauth2.SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-		})
+		}))
 		if !events.Contains(&goauth2.AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{}) {
 			writeInvalidClientResponse(w)
 			return

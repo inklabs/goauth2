@@ -33,7 +33,7 @@ func New(options ...Option) *App {
 	return app
 }
 
-func (a *App) Dispatch(command Command) SavedEvents {
+func (a *App) Dispatch(command Command) []rangedb.Event {
 	var events []rangedb.Event
 
 	switch command.(type) {
