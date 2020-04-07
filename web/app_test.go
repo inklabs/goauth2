@@ -16,8 +16,6 @@ import (
 
 	"github.com/inklabs/goauth2"
 	"github.com/inklabs/goauth2/web"
-	"github.com/inklabs/goauth2/web/pkg/templateloader/provider/livefilesystemloader"
-	"github.com/inklabs/goauth2/web/webtest"
 )
 
 const (
@@ -33,10 +31,12 @@ const (
 	clientCredentialsGrant = "client_credentials"
 )
 
+var TemplateAssets = http.Dir("./templates")
+
 func Test_Login_ServesLoginForm(t *testing.T) {
 	// Given
 	app := web.New(
-		web.WithTemplateLoader(livefilesystemloader.New("./templates")),
+		web.WithTemplateFilesystem(TemplateAssets),
 	)
 	params := getAuthorizeParams()
 	uri := fmt.Sprintf("/login?%s", params.Encode())
@@ -61,7 +61,7 @@ func Test_Login_ServesLoginForm(t *testing.T) {
 func Test_Login_FailsToServeLoginForm(t *testing.T) {
 	// Given
 	app := web.New(
-		web.WithTemplateLoader(webtest.NewFailingTemplateLoader()),
+		web.WithTemplateFilesystem(failingFilesystem{}),
 	)
 	params := getAuthorizeParams()
 	uri := fmt.Sprintf("/login?%s", params.Encode())
@@ -231,4 +231,10 @@ func getStoreWithEvents(events ...rangedb.Event) rangedb.Store {
 	}
 
 	return eventStore
+}
+
+type failingFilesystem struct{}
+
+func (f failingFilesystem) Open(_ string) (http.File, error) {
+	return nil, fmt.Errorf("failingFilesystem:Open")
 }

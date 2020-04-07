@@ -5,22 +5,21 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
-
-	"github.com/inklabs/goauth2/web/pkg/templateloader"
+	"net/http"
 )
 
 //TemplateManager holds templates that can be rendered via the html/template package
 type TemplateManager struct {
-	templateLoader templateloader.TemplateLoader
+	templateLoader http.FileSystem
 }
 
 //New constructs a template manager.
-func New(templateLoader templateloader.TemplateLoader) *TemplateManager {
+func New(templateLoader http.FileSystem) *TemplateManager {
 	return &TemplateManager{templateLoader: templateLoader}
 }
 
 func (t *TemplateManager) RenderTemplate(w io.Writer, templateName string, data interface{}) error {
-	templateReader, err := t.templateLoader.Load(templateName)
+	templateReader, err := t.templateLoader.Open(templateName)
 	if err != nil {
 		return TemplateNotFound
 	}

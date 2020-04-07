@@ -8,13 +8,10 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/inklabs/goauth2"
-	"github.com/inklabs/goauth2/web/pkg/templateloader"
-	"github.com/inklabs/goauth2/web/pkg/templateloader/provider/statikloader"
 	"github.com/inklabs/goauth2/web/pkg/templatemanager"
-	_ "github.com/inklabs/goauth2/web/statik"
 )
 
-//go:generate go run github.com/rakyll/statik -src ./templates
+//go:generate go run github.com/shurcooL/vfsgen/cmd/vfsgendev -source="github.com/inklabs/goauth2/web".TemplateAssets
 
 type app struct {
 	router          *mux.Router
@@ -25,10 +22,10 @@ type app struct {
 //Option defines functional option parameters for app.
 type Option func(*app)
 
-//WithTemplateLoader is a functional option to inject a template loader.
-func WithTemplateLoader(templateLoader templateloader.TemplateLoader) Option {
+//WithTemplateFilesystem is a functional option to inject a template loader.
+func WithTemplateFilesystem(fileSystem http.FileSystem) Option {
 	return func(app *app) {
-		app.templateManager = templatemanager.New(templateLoader)
+		app.templateManager = templatemanager.New(fileSystem)
 	}
 }
 
@@ -42,7 +39,7 @@ func WithGoauth2App(goauth2App *goauth2.App) Option {
 //New constructs an app.
 func New(options ...Option) *app {
 	app := &app{
-		templateManager: templatemanager.New(statikloader.New()),
+		templateManager: templatemanager.New(TemplateAssets),
 		goauth2App:      goauth2.New(),
 	}
 

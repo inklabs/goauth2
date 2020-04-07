@@ -16,3 +16,34 @@ An OAuth2 server in Go. This project uses an embedded [RangeDB](https://www.gith
 ```
 docker run -p 8080:8080 inklabs/goauth2
 ```
+
+## Client Credentials Grant
+
+http://tools.ietf.org/html/rfc6749#section-4.4
+
+```
++---------+                                  +---------------+
+|         |                                  |               |
+|         |>--(A)- Client Authentication --->| Authorization |
+| Client  |                                  |     Server    |
+|         |<--(B)---- Access Token ---------<|               |
+|         |                                  |               |
++---------+                                  +---------------+
+```
+
+```shell script
+curl localhost:8080/token \
+    -u client_id_hash:client_secret_hash \
+    -d "grant_type=client_credentials" \
+    -d "scope=read_write"
+```
+
+```json
+{
+  "access_token": "d5f4985587ea46028c0946e4a240a9c1",
+  "expires_at": 1574371565,
+  "token_type": "Bearer",
+  "scope": "read_write",
+  "refresh_token": "5512912b2318465f92f979e771e21f0d"
+}
+```
