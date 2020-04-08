@@ -11,15 +11,17 @@ import (
 )
 
 const (
-	clientID     = "7d327d51d1304341a21c1242fcb089f4"
-	clientSecret = "c389e799ac0e4568b1c4b4c96b670605"
-	redirectUri  = "https://example.com/oauth2/callback"
-	userID       = "d904f8dbd4684a6591a24c8e67ea4a77"
-	adminUserID  = "7dd7157576e5426ebf44e387d80f0538"
-	email        = "john@example.com"
-	adminEmail   = "admin@example.com"
-	passwordHash = "$2a$10$U6ej0p2d9Y8OO2635R7l/O4oEBvxgc9o6gCaQ1wjMZ77dr4qGl8nu"
-	password     = "Pass123!"
+	clientID            = "7d327d51d1304341a21c1242fcb089f4"
+	clientSecret        = "c389e799ac0e4568b1c4b4c96b670605"
+	redirectUri         = "https://example.com/oauth2/callback"
+	invalidRedirectUri  = "://invalid-uri"
+	insecureRedirectUri = "http://example.com/oauth2/callback"
+	userID              = "d904f8dbd4684a6591a24c8e67ea4a77"
+	adminUserID         = "7dd7157576e5426ebf44e387d80f0538"
+	email               = "john@example.com"
+	adminEmail          = "admin@example.com"
+	passwordHash        = "$2a$10$U6ej0p2d9Y8OO2635R7l/O4oEBvxgc9o6gCaQ1wjMZ77dr4qGl8nu"
+	password            = "Pass123!"
 )
 
 func Test_OnBoardUser(t *testing.T) {
@@ -229,6 +231,109 @@ func Test_AuthorizeUserToOnBoardClientApplications(t *testing.T) {
 		Then(goauth2.AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingTargetUser{
 			UserID:            userID,
 			AuthorizingUserID: adminUserID,
+		}))
+}
+
+func Test_OnBoardClientApplication(t *testing.T) {
+	t.Run("on-boards client application", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasAuthorizedToOnBoardClientApplications{
+				UserID:            userID,
+				AuthorizingUserID: adminUserID,
+			},
+		).
+		When(goauth2.OnBoardClientApplication{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  redirectUri,
+			UserID:       userID,
+		}).
+		Then(goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  redirectUri,
+			UserID:       userID,
+		}))
+
+	t.Run("rejected due to missing user", goauth2TestCase().
+		Given().
+		When(goauth2.OnBoardClientApplication{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  redirectUri,
+			UserID:       userID,
+		}).
+		Then(goauth2.OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
+			ClientID: clientID,
+			UserID:   userID,
+		}))
+
+	t.Run("rejected due to unauthorized user", goauth2TestCase().
+		Given(goauth2.UserWasOnBoarded{
+			UserID:       userID,
+			Username:     email,
+			PasswordHash: passwordHash,
+		}).
+		When(goauth2.OnBoardClientApplication{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  redirectUri,
+			UserID:       userID,
+		}).
+		Then(goauth2.OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
+			ClientID: clientID,
+			UserID:   userID,
+		}))
+
+	t.Run("rejected due to invalid redirect URI", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasAuthorizedToOnBoardClientApplications{
+				UserID:            userID,
+				AuthorizingUserID: adminUserID,
+			},
+		).
+		When(goauth2.OnBoardClientApplication{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  invalidRedirectUri,
+			UserID:       userID,
+		}).
+		Then(goauth2.OnBoardClientApplicationWasRejectedDueToInvalidRedirectUri{
+			ClientID:    clientID,
+			RedirectUri: invalidRedirectUri,
+		}))
+
+	t.Run("rejected due to insecure redirect URI", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasAuthorizedToOnBoardClientApplications{
+				UserID:            userID,
+				AuthorizingUserID: adminUserID,
+			},
+		).
+		When(goauth2.OnBoardClientApplication{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  insecureRedirectUri,
+			UserID:       userID,
+		}).
+		Then(goauth2.OnBoardClientApplicationWasRejectedDueToInsecureRedirectUri{
+			ClientID:    clientID,
+			RedirectUri: insecureRedirectUri,
 		}))
 }
 

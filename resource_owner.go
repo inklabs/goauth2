@@ -39,6 +39,9 @@ func (a *resourceOwner) apply(event rangedb.Event) {
 		a.Username = e.Username
 		a.PasswordHash = e.PasswordHash
 
+	case *UserWasAuthorizedToOnBoardClientApplications:
+		a.IsAuthorizedToOnboardClientApplications = true
+
 	case *UserWasGrantedAdministratorRole:
 		a.IsAdministrator = true
 

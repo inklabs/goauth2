@@ -56,6 +56,25 @@ func (h *authorizationCommandHandler) Handle(command Command) bool {
 			return false
 		}
 
+	case OnBoardClientApplication:
+		resourceOwner := h.loadResourceOwnerAggregate(c.UserID)
+
+		if !resourceOwner.IsOnBoarded {
+			h.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
+				ClientID: c.ClientID,
+				UserID:   c.UserID,
+			})
+			return false
+		}
+
+		if !resourceOwner.IsAuthorizedToOnboardClientApplications {
+			h.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
+				ClientID: c.ClientID,
+				UserID:   c.UserID,
+			})
+			return false
+		}
+
 	}
 
 	return true

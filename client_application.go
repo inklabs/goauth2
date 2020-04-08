@@ -1,6 +1,8 @@
 package goauth2
 
 import (
+	"net/url"
+
 	"github.com/inklabs/rangedb"
 )
 
@@ -37,6 +39,31 @@ func (a *clientApplication) apply(event rangedb.Event) {
 
 func (a *clientApplication) Handle(command Command) {
 	switch c := command.(type) {
+
+	case OnBoardClientApplication:
+		uri, err := url.Parse(c.RedirectUri)
+		if err != nil {
+			a.emit(OnBoardClientApplicationWasRejectedDueToInvalidRedirectUri{
+				ClientID:    c.ClientID,
+				RedirectUri: c.RedirectUri,
+			})
+			return
+		}
+
+		if uri.Scheme != "https" {
+			a.emit(OnBoardClientApplicationWasRejectedDueToInsecureRedirectUri{
+				ClientID:    c.ClientID,
+				RedirectUri: c.RedirectUri,
+			})
+			return
+		}
+
+		a.emit(ClientApplicationWasOnBoarded{
+			ClientID:     c.ClientID,
+			ClientSecret: c.ClientSecret,
+			RedirectUri:  c.RedirectUri,
+			UserID:       c.UserID,
+		})
 
 	case RequestAccessTokenViaClientCredentialsGrant:
 		if !a.IsOnBoarded {

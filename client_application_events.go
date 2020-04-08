@@ -11,6 +11,7 @@ type ClientApplicationWasOnBoarded struct {
 }
 type OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser struct {
 	ClientID string `json:"clientID"`
+	UserID   string `json:"userID"`
 }
 type OnBoardClientApplicationWasRejectedDueToInsecureRedirectUri struct {
 	ClientID    string `json:"clientID"`
