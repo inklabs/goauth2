@@ -40,6 +40,9 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 	case RequestAccessTokenViaClientCredentialsGrant:
 		events = a.handleWithClientApplicationAggregate(command)
 
+	case OnBoardUser:
+		events = a.handleWithResourceOwnerAggregate(command)
+
 	}
 
 	return events
@@ -47,6 +50,12 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 
 func (a *App) handleWithClientApplicationAggregate(command Command) []rangedb.Event {
 	aggregate := newClientApplication(a.store.AllEventsByStream(rangedb.GetEventStream(command)))
+	aggregate.Handle(command)
+	return a.savePendingEvents(aggregate)
+}
+
+func (a *App) handleWithResourceOwnerAggregate(command Command) []rangedb.Event {
+	aggregate := newResourceOwner(a.store.AllEventsByStream(rangedb.GetEventStream(command)))
 	aggregate.Handle(command)
 	return a.savePendingEvents(aggregate)
 }

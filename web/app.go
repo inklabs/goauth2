@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/inklabs/rangedb"
 
 	"github.com/inklabs/goauth2"
 	"github.com/inklabs/goauth2/web/pkg/templatemanager"
@@ -120,7 +121,7 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 
 	switch grantType {
 	case "client_credentials":
-		events := goauth2.SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
+		events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 		}))
@@ -168,4 +169,20 @@ func writeJsonResponse(w http.ResponseWriter, jsonBody interface{}) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	_, _ = w.Write(bytes)
+}
+
+//SavedEvents contains events that have been persisted to the event store.
+type SavedEvents []rangedb.Event
+
+func (l *SavedEvents) Contains(events ...rangedb.Event) bool {
+	var totalFound int
+	for _, event := range events {
+		for _, savedEvent := range *l {
+			if event.EventType() == savedEvent.EventType() {
+				totalFound++
+				break
+			}
+		}
+	}
+	return len(events) == totalFound
 }
