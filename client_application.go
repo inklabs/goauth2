@@ -40,27 +40,27 @@ func (a *clientApplication) Handle(command Command) {
 
 	case RequestAccessTokenViaClientCredentialsGrant:
 		if !a.IsOnBoarded {
-			a.Emit(RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationID{
+			a.emit(RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationID{
 				ClientID: c.ClientID,
 			})
 			return
 		}
 
 		if a.ClientSecret != c.ClientSecret {
-			a.Emit(RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationSecret{
+			a.emit(RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationSecret{
 				ClientID: c.ClientID,
 			})
 			return
 		}
 
-		a.Emit(AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{
+		a.emit(AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{
 			ClientID: c.ClientID,
 		})
 
 	}
 }
 
-func (a *clientApplication) Emit(events ...rangedb.Event) {
+func (a *clientApplication) emit(events ...rangedb.Event) {
 	for _, event := range events {
 		a.apply(event)
 	}

@@ -32,3 +32,21 @@ type GrantUserAdministratorRoleWasRejectedDueToNonAdministrator struct {
 	UserID         string `json:"userID"`
 	GrantingUserID string `json:"grantingUserID"`
 }
+
+// AuthorizeUserToOnBoardClientApplications Events
+type UserWasAuthorizedToOnBoardClientApplications struct {
+	UserID            string `json:"userID"`
+	AuthorizingUserID string `json:"authorizingUserID"`
+}
+type AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingAuthorizingUser struct {
+	UserID            string `json:"userID"`
+	AuthorizingUserID string `json:"authorizingUserID"`
+}
+type AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingTargetUser struct {
+	UserID            string `json:"userID"`
+	AuthorizingUserID string `json:"authorizingUserID"`
+}
+type AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator struct {
+	UserID            string `json:"userID"`
+	AuthorizingUserID string `json:"authorizingUserID"`
+}

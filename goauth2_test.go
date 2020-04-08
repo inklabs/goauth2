@@ -17,6 +17,7 @@ const (
 	userID       = "d904f8dbd4684a6591a24c8e67ea4a77"
 	adminUserID  = "7dd7157576e5426ebf44e387d80f0538"
 	email        = "john@example.com"
+	adminEmail   = "admin@example.com"
 	passwordHash = "$2a$10$U6ej0p2d9Y8OO2635R7l/O4oEBvxgc9o6gCaQ1wjMZ77dr4qGl8nu"
 	password     = "Pass123!"
 )
@@ -149,6 +150,85 @@ func Test_GrantUserAdministratorRole(t *testing.T) {
 		Then(goauth2.GrantUserAdministratorRoleWasRejectedDueToMissingTargetUser{
 			UserID:         userID,
 			GrantingUserID: adminUserID,
+		}))
+}
+
+func Test_AuthorizeUserToOnBoardClientApplications(t *testing.T) {
+	t.Run("user is authorized to on-board client applications", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       adminUserID,
+				Username:     adminEmail,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         adminUserID,
+				GrantingUserID: adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+		).
+		When(goauth2.AuthorizeUserToOnBoardClientApplications{
+			UserID:            userID,
+			AuthorizingUserID: adminUserID,
+		}).
+		Then(goauth2.UserWasAuthorizedToOnBoardClientApplications{
+			UserID:            userID,
+			AuthorizingUserID: adminUserID,
+		}))
+
+	t.Run("rejected due to missing authorized user", goauth2TestCase().
+		Given(goauth2.UserWasOnBoarded{
+			UserID:       userID,
+			Username:     email,
+			PasswordHash: passwordHash,
+		}).
+		When(goauth2.AuthorizeUserToOnBoardClientApplications{
+			UserID:            userID,
+			AuthorizingUserID: adminUserID,
+		}).
+		Then(goauth2.AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingAuthorizingUser{
+			UserID:            userID,
+			AuthorizingUserID: adminUserID,
+		}))
+
+	t.Run("rejected due to non-administrator user", goauth2TestCase().
+		Given(goauth2.UserWasOnBoarded{
+			UserID:       adminUserID,
+			Username:     adminEmail,
+			PasswordHash: passwordHash,
+		}).
+		When(goauth2.AuthorizeUserToOnBoardClientApplications{
+			UserID:            userID,
+			AuthorizingUserID: adminUserID,
+		}).
+		Then(goauth2.AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator{
+			UserID:            userID,
+			AuthorizingUserID: adminUserID,
+		}))
+
+	t.Run("rejected due to missing target user", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       adminUserID,
+				Username:     adminEmail,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         adminUserID,
+				GrantingUserID: adminUserID,
+			},
+		).
+		When(goauth2.AuthorizeUserToOnBoardClientApplications{
+			UserID:            userID,
+			AuthorizingUserID: adminUserID,
+		}).
+		Then(goauth2.AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingTargetUser{
+			UserID:            userID,
+			AuthorizingUserID: adminUserID,
 		}))
 }
 

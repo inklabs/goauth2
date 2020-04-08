@@ -11,3 +11,7 @@ type GrantUserAdministratorRole struct {
 	UserID         string `json:"userID"`
 	GrantingUserID string `json:"grantingUserID"`
 }
+type AuthorizeUserToOnBoardClientApplications struct {
+	UserID            string `json:"userID"`
+	AuthorizingUserID string `json:"authorizingUserID"`
+}

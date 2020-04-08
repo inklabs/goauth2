@@ -60,6 +60,9 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 	case GrantUserAdministratorRole:
 		events = a.handleWithResourceOwnerAggregate(command)
 
+	case AuthorizeUserToOnBoardClientApplications:
+		events = a.handleWithResourceOwnerAggregate(command)
+
 	}
 
 	return events

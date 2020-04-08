@@ -37,6 +37,25 @@ func (h *authorizationCommandHandler) Handle(command Command) bool {
 			return false
 		}
 
+	case AuthorizeUserToOnBoardClientApplications:
+		authorizingUser := h.loadResourceOwnerAggregate(c.AuthorizingUserID)
+
+		if !authorizingUser.IsOnBoarded {
+			h.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingAuthorizingUser{
+				UserID:            c.UserID,
+				AuthorizingUserID: c.AuthorizingUserID,
+			})
+			return false
+		}
+
+		if !authorizingUser.IsAdministrator {
+			h.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator{
+				UserID:            c.UserID,
+				AuthorizingUserID: c.AuthorizingUserID,
+			})
+			return false
+		}
+
 	}
 
 	return true

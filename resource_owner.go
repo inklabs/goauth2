@@ -34,7 +34,6 @@ func (a *resourceOwner) GetPendingEvents() []rangedb.Event {
 func (a *resourceOwner) apply(event rangedb.Event) {
 	switch e := event.(type) {
 
-	case error:
 	case *UserWasOnBoarded:
 		a.IsOnBoarded = true
 		a.Username = e.Username
@@ -51,20 +50,20 @@ func (a *resourceOwner) Handle(command Command) {
 
 	case OnBoardUser:
 		if a.IsOnBoarded {
-			a.Emit(OnBoardUserWasRejectedDueToExistingUser{
+			a.emit(OnBoardUserWasRejectedDueToExistingUser{
 				UserID: c.UserID,
 			})
 			return
 		}
 
 		if securepass.IsInsecure(c.Password) {
-			a.Emit(OnBoardUserWasRejectedDueToInsecurePassword{
+			a.emit(OnBoardUserWasRejectedDueToInsecurePassword{
 				UserID: c.UserID,
 			})
 			return
 		}
 
-		a.Emit(UserWasOnBoarded{
+		a.emit(UserWasOnBoarded{
 			UserID:       c.UserID,
 			Username:     c.Username,
 			PasswordHash: GeneratePasswordHash(c.Password),
@@ -72,22 +71,36 @@ func (a *resourceOwner) Handle(command Command) {
 
 	case GrantUserAdministratorRole:
 		if !a.IsOnBoarded {
-			a.Emit(GrantUserAdministratorRoleWasRejectedDueToMissingTargetUser{
+			a.emit(GrantUserAdministratorRoleWasRejectedDueToMissingTargetUser{
 				UserID:         c.UserID,
 				GrantingUserID: c.GrantingUserID,
 			})
 			return
 		}
 
-		a.Emit(UserWasGrantedAdministratorRole{
+		a.emit(UserWasGrantedAdministratorRole{
 			UserID:         c.UserID,
 			GrantingUserID: c.GrantingUserID,
+		})
+
+	case AuthorizeUserToOnBoardClientApplications:
+		if !a.IsOnBoarded {
+			a.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingTargetUser{
+				UserID:            c.UserID,
+				AuthorizingUserID: c.AuthorizingUserID,
+			})
+			return
+		}
+
+		a.emit(UserWasAuthorizedToOnBoardClientApplications{
+			UserID:            c.UserID,
+			AuthorizingUserID: c.AuthorizingUserID,
 		})
 
 	}
 }
 
-func (a *resourceOwner) Emit(events ...rangedb.Event) {
+func (a *resourceOwner) emit(events ...rangedb.Event) {
 	for _, event := range events {
 		a.apply(event)
 	}
