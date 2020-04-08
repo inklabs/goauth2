@@ -7,3 +7,7 @@ type OnBoardUser struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
+type GrantUserAdministratorRole struct {
+	UserID         string `json:"userID"`
+	GrantingUserID string `json:"grantingUserID"`
+}

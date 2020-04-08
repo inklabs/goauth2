@@ -7,7 +7,8 @@ import (
 
 //App is the OAuth2 CQRS application.
 type App struct {
-	store rangedb.Store
+	store              rangedb.Store
+	preCommandHandlers []PreCommandHandler
 }
 
 // Option defines functional option parameters for App.
@@ -30,17 +31,33 @@ func New(options ...Option) *App {
 		option(app)
 	}
 
+	app.preCommandHandlers = []PreCommandHandler{
+		newAuthorizationCommandHandler(app.store),
+	}
+
 	return app
 }
 
 func (a *App) Dispatch(command Command) []rangedb.Event {
 	var events []rangedb.Event
 
+	for _, handler := range a.preCommandHandlers {
+		shouldContinue := handler.Handle(command)
+		a.savePendingEvents(handler)
+
+		if !shouldContinue {
+			return events
+		}
+	}
+
 	switch command.(type) {
 	case RequestAccessTokenViaClientCredentialsGrant:
 		events = a.handleWithClientApplicationAggregate(command)
 
 	case OnBoardUser:
+		events = a.handleWithResourceOwnerAggregate(command)
+
+	case GrantUserAdministratorRole:
 		events = a.handleWithResourceOwnerAggregate(command)
 
 	}
@@ -66,4 +83,8 @@ func (a *App) savePendingEvents(events PendingEvents) []rangedb.Event {
 		_ = a.store.Save(event, nil)
 	}
 	return pendingEvents
+}
+
+func resourceOwnerStream(userID string) string {
+	return rangedb.GetEventStream(UserWasOnBoarded{UserID: userID})
 }

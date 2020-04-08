@@ -8,8 +8,8 @@ type clientApplication struct {
 	IsOnBoarded   bool
 	ClientID      string
 	ClientSecret  string
-	PendingEvents []rangedb.Event
 	RedirectUri   string
+	pendingEvents []rangedb.Event
 }
 
 func newClientApplication(records <-chan *rangedb.Record) *clientApplication {
@@ -65,9 +65,9 @@ func (a *clientApplication) Emit(events ...rangedb.Event) {
 		a.apply(event)
 	}
 
-	a.PendingEvents = append(a.PendingEvents, events...)
+	a.pendingEvents = append(a.pendingEvents, events...)
 }
 
 func (a *clientApplication) GetPendingEvents() []rangedb.Event {
-	return a.PendingEvents
+	return a.pendingEvents
 }

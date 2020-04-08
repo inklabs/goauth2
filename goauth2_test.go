@@ -64,6 +64,94 @@ func Test_OnBoardUser(t *testing.T) {
 		}))
 }
 
+func Test_GrantUserAdministratorRole(t *testing.T) {
+	t.Run("user was granted administrator role", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       adminUserID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         adminUserID,
+				GrantingUserID: adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+		).
+		When(goauth2.GrantUserAdministratorRole{
+			UserID:         userID,
+			GrantingUserID: adminUserID,
+		}).
+		Then(goauth2.UserWasGrantedAdministratorRole{
+			UserID:         userID,
+			GrantingUserID: adminUserID,
+		}))
+
+	t.Run("rejected due to missing granting user", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+		).
+		When(goauth2.GrantUserAdministratorRole{
+			UserID:         userID,
+			GrantingUserID: adminUserID,
+		}).
+		Then(goauth2.GrantUserAdministratorRoleWasRejectedDueToMissingGrantingUser{
+			UserID:         userID,
+			GrantingUserID: adminUserID,
+		}))
+
+	t.Run("rejected due to non-administrator granting user", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       adminUserID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+		).
+		When(goauth2.GrantUserAdministratorRole{
+			UserID:         userID,
+			GrantingUserID: adminUserID,
+		}).
+		Then(goauth2.GrantUserAdministratorRoleWasRejectedDueToNonAdministrator{
+			UserID:         userID,
+			GrantingUserID: adminUserID,
+		}))
+
+	t.Run("rejected due to missing target user", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       adminUserID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         adminUserID,
+				GrantingUserID: adminUserID,
+			},
+		).
+		When(goauth2.GrantUserAdministratorRole{
+			UserID:         userID,
+			GrantingUserID: adminUserID,
+		}).
+		Then(goauth2.GrantUserAdministratorRoleWasRejectedDueToMissingTargetUser{
+			UserID:         userID,
+			GrantingUserID: adminUserID,
+		}))
+}
+
 func Test_RequestAccessTokenViaClientCredentialsGrant(t *testing.T) {
 	t.Run("issue access token for on-boarded client application", goauth2TestCase().
 		Given(goauth2.ClientApplicationWasOnBoarded{

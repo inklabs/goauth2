@@ -2,7 +2,7 @@ package goauth2
 
 //go:generate go run gen/eventgenerator/main.go -package goauth2 -id UserID -methodName EventType -aggregateType resource-owner -inFile resource_owner_events.go -outFile resource_owner_events_gen.go
 
-// User Flow
+// OnBoardUser Events
 type UserWasOnBoarded struct {
 	UserID       string `json:"userID"`
 	Username     string `json:"username"`
@@ -13,4 +13,22 @@ type OnBoardUserWasRejectedDueToExistingUser struct {
 }
 type OnBoardUserWasRejectedDueToInsecurePassword struct {
 	UserID string `json:"userID"`
+}
+
+// GrantUserAdministratorRole Events
+type UserWasGrantedAdministratorRole struct {
+	UserID         string `json:"userID"`
+	GrantingUserID string `json:"grantingUserID"`
+}
+type GrantUserAdministratorRoleWasRejectedDueToMissingGrantingUser struct {
+	UserID         string `json:"userID"`
+	GrantingUserID string `json:"grantingUserID"`
+}
+type GrantUserAdministratorRoleWasRejectedDueToMissingTargetUser struct {
+	UserID         string `json:"userID"`
+	GrantingUserID string `json:"grantingUserID"`
+}
+type GrantUserAdministratorRoleWasRejectedDueToNonAdministrator struct {
+	UserID         string `json:"userID"`
+	GrantingUserID string `json:"grantingUserID"`
 }

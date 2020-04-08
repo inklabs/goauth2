@@ -9,3 +9,8 @@ type Command interface {
 	rangedb.AggregateMessage
 	CommandType() string
 }
+
+type PreCommandHandler interface {
+	PendingEvents
+	Handle(command Command) (shouldContinue bool)
+}

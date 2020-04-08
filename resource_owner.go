@@ -40,6 +40,9 @@ func (a *resourceOwner) apply(event rangedb.Event) {
 		a.Username = e.Username
 		a.PasswordHash = e.PasswordHash
 
+	case *UserWasGrantedAdministratorRole:
+		a.IsAdministrator = true
+
 	}
 }
 
@@ -65,6 +68,20 @@ func (a *resourceOwner) Handle(command Command) {
 			UserID:       c.UserID,
 			Username:     c.Username,
 			PasswordHash: GeneratePasswordHash(c.Password),
+		})
+
+	case GrantUserAdministratorRole:
+		if !a.IsOnBoarded {
+			a.Emit(GrantUserAdministratorRoleWasRejectedDueToMissingTargetUser{
+				UserID:         c.UserID,
+				GrantingUserID: c.GrantingUserID,
+			})
+			return
+		}
+
+		a.Emit(UserWasGrantedAdministratorRole{
+			UserID:         c.UserID,
+			GrantingUserID: c.GrantingUserID,
 		})
 
 	}
