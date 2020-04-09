@@ -75,6 +75,26 @@ func (h *authorizationCommandHandler) Handle(command Command) bool {
 			return false
 		}
 
+	case RequestAccessTokenViaImplicitGrant:
+		clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+
+		if !clientApplication.IsOnBoarded {
+			h.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationID{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return false
+		}
+
+		if clientApplication.RedirectUri != c.RedirectUri {
+			h.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+				UserID:      c.UserID,
+				ClientID:    c.ClientID,
+				RedirectUri: c.RedirectUri,
+			})
+			return false
+		}
+
 	}
 
 	return true
@@ -86,6 +106,10 @@ func (h *authorizationCommandHandler) emit(events ...rangedb.Event) {
 
 func (h *authorizationCommandHandler) loadResourceOwnerAggregate(userID string) *resourceOwner {
 	return newResourceOwner(h.store.AllEventsByStream(resourceOwnerStream(userID)))
+}
+
+func (h *authorizationCommandHandler) loadClientApplicationAggregate(clientID string) *clientApplication {
+	return newClientApplication(h.store.AllEventsByStream(clientApplicationStream(clientID)))
 }
 
 func (h *authorizationCommandHandler) GetPendingEvents() []rangedb.Event {

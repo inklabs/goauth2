@@ -14,6 +14,7 @@ const (
 	clientID            = "7d327d51d1304341a21c1242fcb089f4"
 	clientSecret        = "c389e799ac0e4568b1c4b4c96b670605"
 	redirectUri         = "https://example.com/oauth2/callback"
+	wrongRedirectUri    = "https://example.com/wrong/redirect/uri"
 	invalidRedirectUri  = "://invalid-uri"
 	insecureRedirectUri = "http://example.com/oauth2/callback"
 	userID              = "d904f8dbd4684a6591a24c8e67ea4a77"
@@ -334,6 +335,122 @@ func Test_OnBoardClientApplication(t *testing.T) {
 		Then(goauth2.OnBoardClientApplicationWasRejectedDueToInsecureRedirectUri{
 			ClientID:    clientID,
 			RedirectUri: insecureRedirectUri,
+		}))
+}
+
+func Test_RequestAccessTokenViaImplicitGrant(t *testing.T) {
+	t.Run("access token is issued", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			}).
+		When(goauth2.RequestAccessTokenViaImplicitGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: redirectUri,
+			Username:    email,
+			Password:    password,
+		}).
+		Then(goauth2.AccessTokenWasIssuedToUserViaImplicitGrant{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
+
+	t.Run("rejected due to invalid client application id", goauth2TestCase().
+		Given(goauth2.UserWasOnBoarded{
+			UserID:       userID,
+			Username:     email,
+			PasswordHash: passwordHash,
+		}).
+		When(goauth2.RequestAccessTokenViaImplicitGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: redirectUri,
+			Username:    email,
+			Password:    password,
+		}).
+		Then(goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationID{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
+
+	t.Run("rejected due to invalid client application redirect uri", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			}).
+		When(goauth2.RequestAccessTokenViaImplicitGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: wrongRedirectUri,
+			Username:    email,
+			Password:    password,
+		}).
+		Then(goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: wrongRedirectUri,
+		}))
+
+	t.Run("rejected due to missing user", goauth2TestCase().
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			}).
+		When(goauth2.RequestAccessTokenViaImplicitGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: redirectUri,
+			Username:    email,
+			Password:    password,
+		}).
+		Then(goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUser{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
+
+	t.Run("rejected due to invalid user password", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			}).
+		When(goauth2.RequestAccessTokenViaImplicitGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: redirectUri,
+			Username:    email,
+			Password:    "wrong-password",
+		}).
+		Then(goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUserPassword{
+			UserID:   userID,
+			ClientID: clientID,
 		}))
 }
 

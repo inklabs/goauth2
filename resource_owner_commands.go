@@ -15,3 +15,10 @@ type AuthorizeUserToOnBoardClientApplications struct {
 	UserID            string `json:"userID"`
 	AuthorizingUserID string `json:"authorizingUserID"`
 }
+type RequestAccessTokenViaImplicitGrant struct {
+	UserID      string `json:"userID"`
+	ClientID    string `json:"clientID"`
+	RedirectUri string `json:"redirectUri"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+}

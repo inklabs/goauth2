@@ -66,6 +66,8 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 	case OnBoardClientApplication:
 		events = a.handleWithClientApplicationAggregate(command)
 
+	case RequestAccessTokenViaImplicitGrant:
+		events = a.handleWithResourceOwnerAggregate(command)
 	}
 
 	return events
@@ -93,4 +95,8 @@ func (a *App) savePendingEvents(events PendingEvents) []rangedb.Event {
 
 func resourceOwnerStream(userID string) string {
 	return rangedb.GetEventStream(UserWasOnBoarded{UserID: userID})
+}
+
+func clientApplicationStream(clientID string) string {
+	return rangedb.GetEventStream(ClientApplicationWasOnBoarded{ClientID: clientID})
 }

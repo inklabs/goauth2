@@ -100,6 +100,28 @@ func (a *resourceOwner) Handle(command Command) {
 			AuthorizingUserID: c.AuthorizingUserID,
 		})
 
+	case RequestAccessTokenViaImplicitGrant:
+		if !a.IsOnBoarded {
+			a.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUser{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return
+		}
+
+		if !a.IsPasswordValid(c.Password) {
+			a.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUserPassword{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return
+		}
+
+		a.emit(AccessTokenWasIssuedToUserViaImplicitGrant{
+			UserID:   c.UserID,
+			ClientID: c.ClientID,
+		})
+
 	}
 }
 
@@ -109,4 +131,8 @@ func (a *resourceOwner) emit(events ...rangedb.Event) {
 	}
 
 	a.PendingEvents = append(a.PendingEvents, events...)
+}
+
+func (a *resourceOwner) IsPasswordValid(password string) bool {
+	return VerifyPassword(a.PasswordHash, password)
 }

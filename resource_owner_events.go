@@ -50,3 +50,26 @@ type AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator st
 	UserID            string `json:"userID"`
 	AuthorizingUserID string `json:"authorizingUserID"`
 }
+
+// RequestAccessTokenViaImplicitGrant Events
+type AccessTokenWasIssuedToUserViaImplicitGrant struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
+type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationID struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
+type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectUri struct {
+	UserID      string `json:"userID"`
+	ClientID    string `json:"clientID"`
+	RedirectUri string `json:"redirectUri"`
+}
+type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUser struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
+type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUserPassword struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
