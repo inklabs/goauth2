@@ -13,10 +13,13 @@ type resourceOwner struct {
 	PendingEvents                           []rangedb.Event
 	IsAdministrator                         bool
 	IsAuthorizedToOnboardClientApplications bool
+	tokenGenerator                          TokenGenerator
 }
 
-func newResourceOwner(records <-chan *rangedb.Record) *resourceOwner {
-	aggregate := &resourceOwner{}
+func newResourceOwner(records <-chan *rangedb.Record, tokenGenerator TokenGenerator) *resourceOwner {
+	aggregate := &resourceOwner{
+		tokenGenerator: tokenGenerator,
+	}
 
 	for record := range records {
 		if event, ok := record.Data.(rangedb.Event); ok {
@@ -121,6 +124,42 @@ func (a *resourceOwner) Handle(command Command) {
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
+
+	case RequestAccessTokenViaROPCGrant:
+		if !a.IsOnBoarded {
+			a.emit(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUser{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return
+		}
+
+		if !a.IsPasswordValid(c.Password) {
+			a.emit(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUserPassword{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return
+		}
+
+		token, err := a.tokenGenerator.New()
+		if err != nil {
+			// TODO: emit error
+			// a.EmitError(err)
+			return
+		}
+
+		a.emit(
+			AccessTokenWasIssuedToUserViaROPCGrant{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			},
+			RefreshTokenWasIssuedToUserViaROPCGrant{
+				UserID:       c.UserID,
+				ClientID:     c.ClientID,
+				RefreshToken: token,
+			},
+		)
 
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/inklabs/goauth2"
+	"github.com/inklabs/goauth2/goauth2test"
 )
 
 const (
@@ -23,6 +24,7 @@ const (
 	adminEmail          = "admin@example.com"
 	passwordHash        = "$2a$10$U6ej0p2d9Y8OO2635R7l/O4oEBvxgc9o6gCaQ1wjMZ77dr4qGl8nu"
 	password            = "Pass123!"
+	refreshToken        = "1eff35434eee448884a2d7e2dd28b119"
 )
 
 func Test_OnBoardUser(t *testing.T) {
@@ -449,6 +451,121 @@ func Test_RequestAccessTokenViaImplicitGrant(t *testing.T) {
 			Password:    "wrong-password",
 		}).
 		Then(goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUserPassword{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
+}
+
+func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
+	tokenGenerator := goauth2test.NewSeededTokenGenerator(refreshToken)
+
+	t.Run("access and refresh tokens are issued", goauth2TestCase(goauth2.WithTokenGenerator(tokenGenerator)).
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaROPCGrant{
+			UserID:       userID,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Username:     email,
+			Password:     password,
+		}).
+		Then(
+			goauth2.AccessTokenWasIssuedToUserViaROPCGrant{
+				UserID:   userID,
+				ClientID: clientID,
+			},
+			goauth2.RefreshTokenWasIssuedToUserViaROPCGrant{
+				UserID:       userID,
+				ClientID:     clientID,
+				RefreshToken: refreshToken,
+			},
+		))
+
+	t.Run("rejected due to missing client application id", goauth2TestCase().
+		Given().
+		When(goauth2.RequestAccessTokenViaROPCGrant{
+			UserID:       userID,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Username:     email,
+			Password:     password,
+		}).
+		Then(goauth2.RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
+
+	t.Run("rejected due to invalid client application secret", goauth2TestCase().
+		Given(goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  redirectUri,
+			UserID:       adminUserID,
+		}).
+		When(goauth2.RequestAccessTokenViaROPCGrant{
+			UserID:       userID,
+			ClientID:     clientID,
+			ClientSecret: "wrong-client-secret",
+			Username:     email,
+			Password:     password,
+		}).
+		Then(goauth2.RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
+
+	t.Run("rejected due to missing user", goauth2TestCase().
+		Given(goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  redirectUri,
+			UserID:       adminUserID,
+		}).
+		When(goauth2.RequestAccessTokenViaROPCGrant{
+			UserID:       userID,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Username:     email,
+			Password:     password,
+		}).
+		Then(goauth2.RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUser{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
+
+	t.Run("rejected due to invalid user password", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaROPCGrant{
+			UserID:       userID,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Username:     email,
+			Password:     "wrong-password",
+		}).
+		Then(goauth2.RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUserPassword{
 			UserID:   userID,
 			ClientID: clientID,
 		}))

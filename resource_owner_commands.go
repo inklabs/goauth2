@@ -22,3 +22,10 @@ type RequestAccessTokenViaImplicitGrant struct {
 	Username    string `json:"username"`
 	Password    string `json:"password"`
 }
+type RequestAccessTokenViaROPCGrant struct {
+	UserID       string `json:"userID"`
+	ClientID     string `json:"clientID"`
+	ClientSecret string `json:"clientSecret"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+}

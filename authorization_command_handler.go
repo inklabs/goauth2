@@ -5,13 +5,15 @@ import (
 )
 
 type authorizationCommandHandler struct {
-	store         rangedb.Store
-	pendingEvents []rangedb.Event
+	store          rangedb.Store
+	pendingEvents  []rangedb.Event
+	tokenGenerator TokenGenerator
 }
 
-func newAuthorizationCommandHandler(store rangedb.Store) *authorizationCommandHandler {
+func newAuthorizationCommandHandler(store rangedb.Store, tokenGenerator TokenGenerator) *authorizationCommandHandler {
 	return &authorizationCommandHandler{
-		store: store,
+		store:          store,
+		tokenGenerator: tokenGenerator,
 	}
 }
 
@@ -95,6 +97,25 @@ func (h *authorizationCommandHandler) Handle(command Command) bool {
 			return false
 		}
 
+	case RequestAccessTokenViaROPCGrant:
+		clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+
+		if !clientApplication.IsOnBoarded {
+			h.emit(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return false
+		}
+
+		if clientApplication.ClientSecret != c.ClientSecret {
+			h.emit(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return false
+		}
+
 	}
 
 	return true
@@ -105,7 +126,7 @@ func (h *authorizationCommandHandler) emit(events ...rangedb.Event) {
 }
 
 func (h *authorizationCommandHandler) loadResourceOwnerAggregate(userID string) *resourceOwner {
-	return newResourceOwner(h.store.AllEventsByStream(resourceOwnerStream(userID)))
+	return newResourceOwner(h.store.AllEventsByStream(resourceOwnerStream(userID)), h.tokenGenerator)
 }
 
 func (h *authorizationCommandHandler) loadClientApplicationAggregate(clientID string) *clientApplication {

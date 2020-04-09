@@ -8,11 +8,13 @@ import (
 	"github.com/inklabs/goauth2/pkg/bdd"
 )
 
-func goauth2TestCase() *bdd.TestCase {
+func goauth2TestCase(options ...goauth2.Option) *bdd.TestCase {
 	serializer := jsonrecordserializer.New()
 	goauth2.BindEvents(serializer)
 	eventStore := inmemorystore.New(inmemorystore.WithSerializer(serializer))
-	app := goauth2.New(goauth2.WithStore(eventStore))
+
+	options = append(options, goauth2.WithStore(eventStore))
+	app := goauth2.New(options...)
 	return bdd.New(eventStore, func(command bdd.Command) {
 		app.Dispatch(command)
 	})

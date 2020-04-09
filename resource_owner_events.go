@@ -73,3 +73,26 @@ type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUserPassword struc
 	UserID   string `json:"userID"`
 	ClientID string `json:"clientID"`
 }
+
+// RequestAccessTokenViaROPCGrant Events
+type AccessTokenWasIssuedToUserViaROPCGrant struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
+type RefreshTokenWasIssuedToUserViaROPCGrant struct {
+	UserID       string `json:"userID"`
+	ClientID     string `json:"clientID"`
+	RefreshToken string `json:"token"`
+}
+type RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUser struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
+type RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUserPassword struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
+type RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
