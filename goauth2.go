@@ -83,6 +83,9 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 	case RequestAccessTokenViaROPCGrant:
 		events = a.handleWithResourceOwnerAggregate(command)
 
+	case RequestAccessTokenViaRefreshTokenGrant:
+		events = a.handleWithRefreshTokenAggregate(command)
+
 	}
 
 	return events
@@ -96,6 +99,12 @@ func (a *App) handleWithClientApplicationAggregate(command Command) []rangedb.Ev
 
 func (a *App) handleWithResourceOwnerAggregate(command Command) []rangedb.Event {
 	aggregate := newResourceOwner(a.store.AllEventsByStream(rangedb.GetEventStream(command)), a.tokenGenerator)
+	aggregate.Handle(command)
+	return a.savePendingEvents(aggregate)
+}
+
+func (a *App) handleWithRefreshTokenAggregate(command Command) []rangedb.Event {
+	aggregate := newRefreshToken(a.store.AllEventsByStream(rangedb.GetEventStream(command)), a.tokenGenerator)
 	aggregate.Handle(command)
 	return a.savePendingEvents(aggregate)
 }

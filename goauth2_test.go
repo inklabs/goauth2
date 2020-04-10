@@ -458,8 +458,9 @@ func Test_RequestAccessTokenViaImplicitGrant(t *testing.T) {
 
 func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 	tokenGenerator := goauth2test.NewSeededTokenGenerator(refreshToken)
+	option := goauth2.WithTokenGenerator(tokenGenerator)
 
-	t.Run("access and refresh tokens are issued", goauth2TestCase(goauth2.WithTokenGenerator(tokenGenerator)).
+	t.Run("access and refresh tokens are issued", goauth2TestCase(option).
 		Given(
 			goauth2.UserWasOnBoarded{
 				UserID:       userID,
@@ -611,4 +612,199 @@ func Test_RequestAccessTokenViaClientCredentialsGrant(t *testing.T) {
 		Then(goauth2.RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationSecret{
 			ClientID: clientID,
 		}))
+}
+
+func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
+	const nextRefreshToken = "18cb764961464db9b259550c6568fa4d"
+	tokenGenerator := goauth2test.NewSeededTokenGenerator(nextRefreshToken)
+	option := goauth2.WithTokenGenerator(tokenGenerator)
+
+	t.Run("access and refresh tokens are issued to user", goauth2TestCase(option).
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				Username:     email,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+		}).
+		Then(
+			goauth2.AccessTokenWasIssuedToUserViaRefreshTokenGrant{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+			},
+			goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
+				RefreshToken:     refreshToken,
+				UserID:           userID,
+				NextRefreshToken: nextRefreshToken,
+			},
+		))
+
+	t.Run("rejected due to missing client application", goauth2TestCase().
+		Given().
+		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+		}).
+		Then(goauth2.RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+		}))
+
+	t.Run("rejected due to invalid client application credentials", goauth2TestCase().
+		Given(goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  redirectUri,
+			UserID:       adminUserID,
+		}).
+		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+			ClientSecret: "wrong-client-secret",
+		}).
+		Then(goauth2.RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+		}))
+
+	t.Run("rejected due to invalid refresh token", goauth2TestCase().
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+		}).
+		Then(goauth2.RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidRefreshToken{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+		}))
+
+	t.Run("rejected due to previously used refresh token", goauth2TestCase().
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				Username:     email,
+			},
+			goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
+				RefreshToken:     refreshToken,
+				UserID:           userID,
+				NextRefreshToken: nextRefreshToken,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+		}).
+		Then(goauth2.RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToPreviouslyUsedRefreshToken{
+			RefreshToken: refreshToken,
+		}))
+
+	t.Run("rejected due to revoked refresh token", goauth2TestCase().
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				Username:     email,
+			},
+			goauth2.RefreshTokenWasRevoked{
+				RefreshToken: refreshToken,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+		}).
+		Then(goauth2.RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToRevokedRefreshToken{
+			RefreshToken: refreshToken,
+		}))
+}
+
+func Test_RequestAccessTokenViaRefreshTokenGrant_For_ClientApplication(t *testing.T) {
+	const nextRefreshToken = "18cb764961464db9b259550c6568fa4d"
+	tokenGenerator := goauth2test.NewSeededTokenGenerator(nextRefreshToken)
+	option := goauth2.WithTokenGenerator(tokenGenerator)
+
+	t.Run("access and refresh tokens are issued to client application", goauth2TestCase(option).
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+			goauth2.RefreshTokenWasIssuedToClientApplication{
+				RefreshToken: refreshToken,
+				ClientID:     clientID,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+		}).
+		Then(
+			goauth2.AccessTokenWasIssuedToClientApplicationViaRefreshTokenGrant{
+				RefreshToken: refreshToken,
+				ClientID:     clientID,
+			},
+			goauth2.RefreshTokenWasIssuedToClientApplicationViaRefreshTokenGrant{
+				RefreshToken:     refreshToken,
+				ClientID:         clientID,
+				NextRefreshToken: nextRefreshToken,
+			},
+		))
 }

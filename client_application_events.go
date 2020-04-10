@@ -2,7 +2,7 @@ package goauth2
 
 //go:generate go run gen/eventgenerator/main.go -package goauth2 -id ClientID -methodName EventType -aggregateType client-application -inFile client_application_events.go -outFile client_application_events_gen.go
 
-// Client Application Flow
+// OnBoardClientApplication Events
 type ClientApplicationWasOnBoarded struct {
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
@@ -22,7 +22,7 @@ type OnBoardClientApplicationWasRejectedDueToInvalidRedirectUri struct {
 	RedirectUri string `json:"redirectUri"`
 }
 
-// Client Credentials Grant Flow
+// RequestAccessTokenViaClientCredentialsGrant Events
 type AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant struct {
 	ClientID string `json:"clientID"`
 }

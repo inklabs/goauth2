@@ -145,7 +145,6 @@ func (a *resourceOwner) Handle(command Command) {
 		token, err := a.tokenGenerator.New()
 		if err != nil {
 			// TODO: emit error
-			// a.EmitError(err)
 			return
 		}
 

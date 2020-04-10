@@ -116,6 +116,25 @@ func (h *authorizationCommandHandler) Handle(command Command) bool {
 			return false
 		}
 
+	case RequestAccessTokenViaRefreshTokenGrant:
+		clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+
+		if !clientApplication.IsOnBoarded {
+			h.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
+				RefreshToken: c.RefreshToken,
+				ClientID:     c.ClientID,
+			})
+			return false
+		}
+
+		if clientApplication.ClientSecret != c.ClientSecret {
+			h.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
+				RefreshToken: c.RefreshToken,
+				ClientID:     c.ClientID,
+			})
+			return false
+		}
+
 	}
 
 	return true
