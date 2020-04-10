@@ -11,6 +11,7 @@ import (
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/provider/inmemorystore"
 	"github.com/inklabs/rangedb/provider/jsonrecordserializer"
+	"github.com/inklabs/rangedb/rangedbtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -204,6 +205,20 @@ func Test_TokenEndpoint(t *testing.T) {
 		assertJsonHeaders(t, w)
 		assert.Equal(t, `{"error":"unsupported_grant_type"}`, w.Body.String())
 	})
+}
+
+func Test_SavedEvents(t *testing.T) {
+	// Given
+	events := web.SavedEvents{
+		&rangedbtest.ThingWasDone{},
+		&rangedbtest.ThatWasDone{},
+	}
+
+	// Then
+	assert.True(t, events.Contains(&rangedbtest.ThingWasDone{}))
+	assert.True(t, events.Contains(&rangedbtest.ThingWasDone{}, &rangedbtest.ThatWasDone{}))
+	assert.False(t, events.Contains(&rangedbtest.AnotherWasComplete{}))
+	assert.False(t, events.Contains(&rangedbtest.AnotherWasComplete{}, &rangedbtest.ThingWasDone{}))
 }
 
 func getAuthorizeParams() *url.Values {
