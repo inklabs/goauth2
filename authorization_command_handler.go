@@ -162,6 +162,34 @@ func (h *authorizationCommandHandler) Handle(command Command) bool {
 			return false
 		}
 
+	case RequestAccessTokenViaAuthorizationCodeGrant:
+		clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+
+		if !clientApplication.IsOnBoarded {
+			h.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
+				AuthorizationCode: c.AuthorizationCode,
+				ClientID:          c.ClientID,
+			})
+			return false
+		}
+
+		if clientApplication.ClientSecret != c.ClientSecret {
+			h.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationSecret{
+				AuthorizationCode: c.AuthorizationCode,
+				ClientID:          c.ClientID,
+			})
+			return false
+		}
+
+		if clientApplication.RedirectUri != c.RedirectUri {
+			h.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+				AuthorizationCode: c.AuthorizationCode,
+				ClientID:          c.ClientID,
+				RedirectUri:       c.RedirectUri,
+			})
+			return false
+		}
+
 	}
 
 	return true

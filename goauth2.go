@@ -98,6 +98,9 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 	case RequestAuthorizationCodeViaAuthorizationCodeGrant:
 		events = a.handleWithResourceOwnerAggregate(command)
 
+	case RequestAccessTokenViaAuthorizationCodeGrant:
+		events = a.handleWithAuthorizationCodeAggregate(command)
+
 	}
 
 	return events
@@ -123,6 +126,16 @@ func (a *App) handleWithRefreshTokenAggregate(command Command) []rangedb.Event {
 	aggregate := newRefreshToken(
 		a.store.AllEventsByStream(rangedb.GetEventStream(command)),
 		a.tokenGenerator,
+	)
+	aggregate.Handle(command)
+	return a.savePendingEvents(aggregate)
+}
+
+func (a *App) handleWithAuthorizationCodeAggregate(command Command) []rangedb.Event {
+	aggregate := newAuthorizationCode(
+		a.store.AllEventsByStream(rangedb.GetEventStream(command)),
+		a.tokenGenerator,
+		a.clock,
 	)
 	aggregate.Handle(command)
 	return a.savePendingEvents(aggregate)
