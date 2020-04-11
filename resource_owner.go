@@ -1,10 +1,15 @@
 package goauth2
 
 import (
+	"time"
+
 	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/pkg/clock"
 
 	"github.com/inklabs/goauth2/pkg/securepass"
 )
+
+const authorizationCodeLifetime = 10 * time.Minute
 
 type resourceOwner struct {
 	IsOnBoarded                             bool
@@ -14,11 +19,13 @@ type resourceOwner struct {
 	IsAdministrator                         bool
 	IsAuthorizedToOnboardClientApplications bool
 	tokenGenerator                          TokenGenerator
+	clock                                   clock.Clock
 }
 
-func newResourceOwner(records <-chan *rangedb.Record, tokenGenerator TokenGenerator) *resourceOwner {
+func newResourceOwner(records <-chan *rangedb.Record, tokenGenerator TokenGenerator, clock clock.Clock) *resourceOwner {
 	aggregate := &resourceOwner{
 		tokenGenerator: tokenGenerator,
+		clock:          clock,
 	}
 
 	for record := range records {
@@ -159,6 +166,37 @@ func (a *resourceOwner) Handle(command Command) {
 				RefreshToken: token,
 			},
 		)
+
+	case RequestAuthorizationCodeViaAuthorizationCodeGrant:
+		if !a.IsOnBoarded {
+			a.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUser{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return
+		}
+
+		if !a.IsPasswordValid(c.Password) {
+			a.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUserPassword{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return
+		}
+
+		authorizationCode, err := a.tokenGenerator.New()
+		if err != nil {
+			// TODO: emit error
+			return
+		}
+
+		expiresAt := a.clock.Now().Add(authorizationCodeLifetime).Unix()
+
+		a.emit(AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{
+			UserID:            c.UserID,
+			AuthorizationCode: authorizationCode,
+			ExpiresAt:         expiresAt,
+		})
 
 	}
 }

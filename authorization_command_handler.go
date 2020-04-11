@@ -2,18 +2,25 @@ package goauth2
 
 import (
 	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/pkg/clock"
 )
 
 type authorizationCommandHandler struct {
 	store          rangedb.Store
 	pendingEvents  []rangedb.Event
 	tokenGenerator TokenGenerator
+	clock          clock.Clock
 }
 
-func newAuthorizationCommandHandler(store rangedb.Store, tokenGenerator TokenGenerator) *authorizationCommandHandler {
+func newAuthorizationCommandHandler(
+	store rangedb.Store,
+	tokenGenerator TokenGenerator,
+	clock clock.Clock,
+) *authorizationCommandHandler {
 	return &authorizationCommandHandler{
 		store:          store,
 		tokenGenerator: tokenGenerator,
+		clock:          clock,
 	}
 }
 
@@ -135,6 +142,26 @@ func (h *authorizationCommandHandler) Handle(command Command) bool {
 			return false
 		}
 
+	case RequestAuthorizationCodeViaAuthorizationCodeGrant:
+		clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+
+		if !clientApplication.IsOnBoarded {
+			h.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
+				UserID:   c.UserID,
+				ClientID: c.ClientID,
+			})
+			return false
+		}
+
+		if clientApplication.RedirectUri != c.RedirectUri {
+			h.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+				UserID:      c.UserID,
+				ClientID:    c.ClientID,
+				RedirectUri: c.RedirectUri,
+			})
+			return false
+		}
+
 	}
 
 	return true
@@ -145,7 +172,7 @@ func (h *authorizationCommandHandler) emit(events ...rangedb.Event) {
 }
 
 func (h *authorizationCommandHandler) loadResourceOwnerAggregate(userID string) *resourceOwner {
-	return newResourceOwner(h.store.AllEventsByStream(resourceOwnerStream(userID)), h.tokenGenerator)
+	return newResourceOwner(h.store.AllEventsByStream(resourceOwnerStream(userID)), h.tokenGenerator, h.clock)
 }
 
 func (h *authorizationCommandHandler) loadClientApplicationAggregate(clientID string) *clientApplication {

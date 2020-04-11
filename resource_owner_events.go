@@ -96,3 +96,27 @@ type RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCrede
 	UserID   string `json:"userID"`
 	ClientID string `json:"clientID"`
 }
+
+// RequestAuthorizationCodeViaAuthorizationCodeGrant Events
+type AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant struct {
+	UserID            string `json:"userID"`
+	AuthorizationCode string `json:"authorizationCode"`
+	ExpiresAt         int64  `json:"expiresAt"`
+}
+type RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
+type RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri struct {
+	UserID      string `json:"userID"`
+	ClientID    string `json:"clientID"`
+	RedirectUri string `json:"redirectUri"`
+}
+type RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUser struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}
+type RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUserPassword struct {
+	UserID   string `json:"userID"`
+	ClientID string `json:"clientID"`
+}

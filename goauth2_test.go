@@ -2,8 +2,10 @@ package goauth2_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/pkg/clock/provider/seededclock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,6 +27,12 @@ const (
 	passwordHash        = "$2a$10$U6ej0p2d9Y8OO2635R7l/O4oEBvxgc9o6gCaQ1wjMZ77dr4qGl8nu"
 	password            = "Pass123!"
 	refreshToken        = "1eff35434eee448884a2d7e2dd28b119"
+	authorizationCode   = "afa410b917034f67b64ec9164bf4140d"
+)
+
+var (
+	issueTime              = time.Date(2020, 04, 1, 8, 0, 0, 0, time.UTC)
+	issueTimePlus10Minutes = issueTime.Add(10 * time.Minute)
 )
 
 func Test_OnBoardUser(t *testing.T) {
@@ -807,4 +815,118 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_ClientApplication(t *testin
 				NextRefreshToken: nextRefreshToken,
 			},
 		))
+}
+
+func Test_RequestAuthorizationCodeViaAuthorizationCodeGrant(t *testing.T) {
+	tokenGenerator := goauth2test.NewSeededTokenGenerator(authorizationCode)
+	options := []goauth2.Option{
+		goauth2.WithTokenGenerator(tokenGenerator),
+		goauth2.WithClock(seededclock.New(issueTime)),
+	}
+
+	t.Run("issues authorization code to user", goauth2TestCase(options...).
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+		).
+		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: redirectUri,
+			Username:    email,
+			Password:    password,
+		}).
+		Then(goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{
+			UserID:            userID,
+			AuthorizationCode: authorizationCode,
+			ExpiresAt:         issueTimePlus10Minutes.Unix(),
+		}))
+
+	t.Run("rejected due to missing client application id", goauth2TestCase().
+		Given().
+		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: redirectUri,
+			Username:    email,
+			Password:    password,
+		}).
+		Then(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
+
+	t.Run("rejected due to invalid client application redirect uri", goauth2TestCase().
+		Given(goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  redirectUri,
+			UserID:       adminUserID,
+		}).
+		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: wrongRedirectUri,
+			Username:    email,
+			Password:    password,
+		}).
+		Then(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: wrongRedirectUri,
+		}))
+
+	t.Run("rejected due to missing user", goauth2TestCase().
+		Given(goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectUri:  redirectUri,
+			UserID:       adminUserID,
+		}).
+		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: redirectUri,
+			Username:    email,
+			Password:    password,
+		}).
+		Then(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUser{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
+
+	t.Run("rejected due to invalid user password", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+		).
+		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectUri: redirectUri,
+			Username:    email,
+			Password:    "wrong-password",
+		}).
+		Then(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUserPassword{
+			UserID:   userID,
+			ClientID: clientID,
+		}))
 }
