@@ -52,7 +52,8 @@ func New(options ...Option) *App {
 	}
 
 	app.preCommandHandlers = []PreCommandHandler{
-		newAuthorizationCommandHandler(app.store, app.tokenGenerator, app.clock),
+		newResourceOwnerCommandAuthorization(app.store, app.tokenGenerator, app.clock),
+		newClientApplicationCommandAuthorization(app.store),
 	}
 
 	return app

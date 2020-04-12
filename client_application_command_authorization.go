@@ -2,87 +2,21 @@ package goauth2
 
 import (
 	"github.com/inklabs/rangedb"
-	"github.com/inklabs/rangedb/pkg/clock"
 )
 
-type authorizationCommandHandler struct {
-	store          rangedb.Store
-	pendingEvents  []rangedb.Event
-	tokenGenerator TokenGenerator
-	clock          clock.Clock
+type clientApplicationCommandAuthorization struct {
+	store         rangedb.Store
+	pendingEvents []rangedb.Event
 }
 
-func newAuthorizationCommandHandler(
-	store rangedb.Store,
-	tokenGenerator TokenGenerator,
-	clock clock.Clock,
-) *authorizationCommandHandler {
-	return &authorizationCommandHandler{
-		store:          store,
-		tokenGenerator: tokenGenerator,
-		clock:          clock,
+func newClientApplicationCommandAuthorization(store rangedb.Store) *clientApplicationCommandAuthorization {
+	return &clientApplicationCommandAuthorization{
+		store: store,
 	}
 }
 
-func (h *authorizationCommandHandler) Handle(command Command) bool {
+func (h *clientApplicationCommandAuthorization) Handle(command Command) bool {
 	switch c := command.(type) {
-
-	case GrantUserAdministratorRole:
-		grantingUser := h.loadResourceOwnerAggregate(c.GrantingUserID)
-
-		if !grantingUser.IsOnBoarded {
-			h.emit(GrantUserAdministratorRoleWasRejectedDueToMissingGrantingUser{
-				UserID:         c.UserID,
-				GrantingUserID: c.GrantingUserID,
-			})
-			return false
-		}
-
-		if !grantingUser.IsAdministrator {
-			h.emit(GrantUserAdministratorRoleWasRejectedDueToNonAdministrator{
-				UserID:         c.UserID,
-				GrantingUserID: c.GrantingUserID,
-			})
-			return false
-		}
-
-	case AuthorizeUserToOnBoardClientApplications:
-		authorizingUser := h.loadResourceOwnerAggregate(c.AuthorizingUserID)
-
-		if !authorizingUser.IsOnBoarded {
-			h.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingAuthorizingUser{
-				UserID:            c.UserID,
-				AuthorizingUserID: c.AuthorizingUserID,
-			})
-			return false
-		}
-
-		if !authorizingUser.IsAdministrator {
-			h.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator{
-				UserID:            c.UserID,
-				AuthorizingUserID: c.AuthorizingUserID,
-			})
-			return false
-		}
-
-	case OnBoardClientApplication:
-		resourceOwner := h.loadResourceOwnerAggregate(c.UserID)
-
-		if !resourceOwner.IsOnBoarded {
-			h.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
-				ClientID: c.ClientID,
-				UserID:   c.UserID,
-			})
-			return false
-		}
-
-		if !resourceOwner.IsAuthorizedToOnboardClientApplications {
-			h.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
-				ClientID: c.ClientID,
-				UserID:   c.UserID,
-			})
-			return false
-		}
 
 	case RequestAccessTokenViaImplicitGrant:
 		clientApplication := h.loadClientApplicationAggregate(c.ClientID)
@@ -195,18 +129,14 @@ func (h *authorizationCommandHandler) Handle(command Command) bool {
 	return true
 }
 
-func (h *authorizationCommandHandler) emit(events ...rangedb.Event) {
+func (h *clientApplicationCommandAuthorization) emit(events ...rangedb.Event) {
 	h.pendingEvents = append(h.pendingEvents, events...)
 }
 
-func (h *authorizationCommandHandler) loadResourceOwnerAggregate(userID string) *resourceOwner {
-	return newResourceOwner(h.store.AllEventsByStream(resourceOwnerStream(userID)), h.tokenGenerator, h.clock)
-}
-
-func (h *authorizationCommandHandler) loadClientApplicationAggregate(clientID string) *clientApplication {
+func (h *clientApplicationCommandAuthorization) loadClientApplicationAggregate(clientID string) *clientApplication {
 	return newClientApplication(h.store.AllEventsByStream(clientApplicationStream(clientID)))
 }
 
-func (h *authorizationCommandHandler) GetPendingEvents() []rangedb.Event {
+func (h *clientApplicationCommandAuthorization) GetPendingEvents() []rangedb.Event {
 	return h.pendingEvents
 }
