@@ -9,6 +9,7 @@ import (
 	"github.com/inklabs/rangedb"
 
 	"github.com/inklabs/goauth2"
+	"github.com/inklabs/goauth2/projection"
 	"github.com/inklabs/goauth2/web/pkg/templatemanager"
 )
 
@@ -18,6 +19,9 @@ type app struct {
 	router          *mux.Router
 	templateManager *templatemanager.TemplateManager
 	goauth2App      *goauth2.App
+	projections     struct {
+		emailToUserID *projection.EmailToUserID
+	}
 }
 
 //Option defines functional option parameters for app.
@@ -49,6 +53,7 @@ func New(options ...Option) *app {
 	}
 
 	app.initRoutes()
+	app.initProjections()
 
 	return app
 }
@@ -57,6 +62,11 @@ func (a *app) initRoutes() {
 	a.router = mux.NewRouter().StrictSlash(true)
 	a.router.HandleFunc("/login", a.login)
 	a.router.HandleFunc("/token", a.token)
+}
+
+func (a *app) initProjections() {
+	a.projections.emailToUserID = projection.NewEmailToUserID()
+	a.goauth2App.SubscribeAndReplay(a.projections.emailToUserID)
 }
 
 func (a *app) login(w http.ResponseWriter, r *http.Request) {
@@ -130,6 +140,32 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+	case "password":
+		username := r.Form.Get("username")
+		password := r.Form.Get("password")
+		userID, err := a.projections.emailToUserID.GetUserID(username)
+		if err != nil {
+			writeInvalidGrantResponse(w)
+			return
+		}
+
+		events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaROPCGrant{
+			UserID:       userID,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Username:     username,
+			Password:     password,
+		}))
+		if !events.Contains(&goauth2.AccessTokenWasIssuedToUserViaROPCGrant{}) {
+			if events.Contains(&goauth2.RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{}) {
+				writeInvalidClientResponse(w)
+				return
+			}
+
+			writeInvalidGrantResponse(w)
+			return
+		}
+
 	default:
 		writeUnsupportedGrantTypeResponse(w)
 		return
@@ -152,6 +188,11 @@ type errorResponse struct {
 func writeInvalidClientResponse(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusUnauthorized)
 	writeJsonResponse(w, errorResponse{Error: "invalid_client"})
+}
+
+func writeInvalidGrantResponse(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusUnauthorized)
+	writeJsonResponse(w, errorResponse{Error: "invalid_grant"})
 }
 
 func writeUnsupportedGrantTypeResponse(w http.ResponseWriter) {

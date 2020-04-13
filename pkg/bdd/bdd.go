@@ -46,7 +46,10 @@ func (c *TestCase) Then(expectedEvents ...rangedb.Event) func(*testing.T) {
 		streamPreviousEventCounts := make(map[string]uint64)
 		for _, event := range c.previousEvents {
 			streamPreviousEventCounts[rangedb.GetEventStream(event)]++
-			_ = c.store.Save(event, nil)
+			err := c.store.Save(event, nil)
+			if err != nil {
+				t.Errorf("unable to save event: %v", err)
+			}
 		}
 
 		c.dispatch(c.command)
@@ -74,7 +77,10 @@ func (c *TestCase) ThenInspectEvents(f func(t *testing.T, events []rangedb.Event
 		streamPreviousEventCounts := make(map[string]uint64)
 		for _, event := range c.previousEvents {
 			streamPreviousEventCounts[rangedb.GetEventStream(event)]++
-			_ = c.store.Save(event, nil)
+			err := c.store.Save(event, nil)
+			if err != nil {
+				t.Errorf("unable to save event: %v", err)
+			}
 		}
 
 		c.dispatch(c.command)

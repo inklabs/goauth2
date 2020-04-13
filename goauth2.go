@@ -1,6 +1,8 @@
 package goauth2
 
 import (
+	"log"
+
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/clock"
 	"github.com/inklabs/rangedb/provider/inmemorystore"
@@ -51,6 +53,8 @@ func New(options ...Option) *App {
 		option(app)
 	}
 
+	BindEvents(app.store)
+
 	app.preCommandHandlers = []PreCommandHandler{
 		newResourceOwnerCommandAuthorization(app.store, app.tokenGenerator, app.clock),
 		newClientApplicationCommandAuthorization(app.store),
@@ -64,7 +68,7 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 
 	for _, handler := range a.preCommandHandlers {
 		shouldContinue := handler.Handle(command)
-		a.savePendingEvents(handler)
+		events = append(events, a.savePendingEvents(handler)...)
 
 		if !shouldContinue {
 			return events
@@ -145,9 +149,16 @@ func (a *App) handleWithAuthorizationCodeAggregate(command Command) []rangedb.Ev
 func (a *App) savePendingEvents(events PendingEvents) []rangedb.Event {
 	pendingEvents := events.GetPendingEvents()
 	for _, event := range pendingEvents {
-		_ = a.store.Save(event, nil)
+		err := a.store.Save(event, nil)
+		if err != nil {
+			log.Printf("unable to save event: %v", err)
+		}
 	}
 	return pendingEvents
+}
+
+func (a *App) SubscribeAndReplay(subscribers ...rangedb.RecordSubscriber) {
+	a.store.SubscribeAndReplay(subscribers...)
 }
 
 func resourceOwnerStream(userID string) string {

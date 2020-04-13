@@ -6,6 +6,7 @@ import (
 
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/clock/provider/seededclock"
+	"github.com/inklabs/rangedb/provider/inmemorystore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1172,4 +1173,51 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 		}))
+}
+
+func TestEventsAreBoundProperly(t *testing.T) {
+	t.Run("by default", func(t *testing.T) {
+		// Given
+		app := goauth2.New()
+		recorder := &eventRecorder{}
+		app.SubscribeAndReplay(recorder)
+
+		// When
+		app.Dispatch(goauth2.OnBoardUser{
+			UserID:   userID,
+			Username: "john@example.com",
+			Password: "p45w0rd",
+		})
+
+		// Then
+		assert.Equal(t, 1, len(recorder.Records))
+		assert.IsType(t, &goauth2.UserWasOnBoarded{}, recorder.Records[0].Data)
+	})
+
+	t.Run("when injecting a store", func(t *testing.T) {
+		// Given
+		store := inmemorystore.New()
+		app := goauth2.New(goauth2.WithStore(store))
+		recorder := &eventRecorder{}
+		app.SubscribeAndReplay(recorder)
+
+		// When
+		app.Dispatch(goauth2.OnBoardUser{
+			UserID:   userID,
+			Username: "john@example.com",
+			Password: "p45w0rd",
+		})
+
+		// Then
+		assert.Equal(t, 1, len(recorder.Records))
+		assert.IsType(t, &goauth2.UserWasOnBoarded{}, recorder.Records[0].Data)
+	})
+}
+
+type eventRecorder struct {
+	Records []*rangedb.Record
+}
+
+func (e *eventRecorder) Accept(record *rangedb.Record) {
+	e.Records = append(e.Records, record)
 }

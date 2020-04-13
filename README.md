@@ -47,3 +47,46 @@ curl localhost:8080/token \
   "refresh_token": "5512912b2318465f92f979e771e21f0d"
 }
 ```
+
+## Resource Owner Password Credentials
+
+http://tools.ietf.org/html/rfc6749#section-4.3
+
+```
++----------+
+| Resource |
+|  Owner   |
+|          |
++----------+
+     v
+     |    Resource Owner
+     (A) Password Credentials
+     |
+     v
++---------+                                  +---------------+
+|         |>--(B)---- Resource Owner ------->|               |
+|         |         Password Credentials     | Authorization |
+| Client  |                                  |     Server    |
+|         |<--(C)---- Access Token ---------<|               |
+|         |    (w/ Optional Refresh Token)   |               |
++---------+                                  +---------------+
+```
+
+```shell script
+curl localhost:8080/token \
+    -u client_id_hash:client_secret_hash \
+    -d "grant_type=password" \
+    -d "username=john@example.com" \
+    -d "password=p45w0rd" \
+    -d "scope=read_write"
+```
+
+```json
+{
+  "access_token": "a3c5300be4d24e65a68176c7ba521c50",
+  "expires_at": 1574371565,
+  "token_type": "Bearer",
+  "scope": "read_write",
+  "refresh_token": "8fc94d5d75cc4ddd9bc6b5d13ebed390"
+}
+```
