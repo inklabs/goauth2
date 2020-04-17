@@ -16,10 +16,9 @@ func Test_Generator_ReturnsHexTokenWithoutHyphens(t *testing.T) {
 	generator := uuidtoken.NewGenerator()
 
 	// When
-	token, err := generator.New()
+	token := generator.New()
 
 	// Then
-	require.NoError(t, err)
 	assert.Equal(t, 32, len(token))
 	assert.NotContains(t, token, "-")
 }
@@ -29,10 +28,9 @@ func Test_Generator_ReturnsValidUUIDToken(t *testing.T) {
 	generator := uuidtoken.NewGenerator()
 
 	// When
-	token, err := generator.New()
+	token := generator.New()
 
 	// Then
-	require.NoError(t, err)
 	u, err := uuid.Parse(token)
 	require.NoError(t, err)
 	actualWithoutHyphens := strings.Replace(u.String(), "-", "", -1)

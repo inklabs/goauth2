@@ -16,6 +16,7 @@ type App struct {
 	store              rangedb.Store
 	tokenGenerator     TokenGenerator
 	preCommandHandlers []PreCommandHandler
+	logger             *log.Logger
 }
 
 // Option defines functional option parameters for App.
@@ -39,6 +40,13 @@ func WithStore(store rangedb.Store) Option {
 func WithTokenGenerator(generator TokenGenerator) Option {
 	return func(app *App) {
 		app.tokenGenerator = generator
+	}
+}
+
+// WithLogger is a functional option to inject a Logger.
+func WithLogger(logger *log.Logger) Option {
+	return func(app *App) {
+		app.logger = logger
 	}
 }
 
@@ -151,7 +159,7 @@ func (a *App) savePendingEvents(events PendingEvents) []rangedb.Event {
 	for _, event := range pendingEvents {
 		err := a.store.Save(event, nil)
 		if err != nil {
-			log.Printf("unable to save event: %v", err)
+			a.logger.Printf("unable to save event: %v", err)
 		}
 	}
 	return pendingEvents

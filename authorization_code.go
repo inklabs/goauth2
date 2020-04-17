@@ -75,11 +75,7 @@ func (a *authorizationCode) Handle(command Command) {
 			return
 		}
 
-		refreshToken, err := a.tokenGenerator.New()
-		if err != nil {
-			// TODO: emit error
-			return
-		}
+		refreshToken := a.tokenGenerator.New()
 
 		a.emit(
 			AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{

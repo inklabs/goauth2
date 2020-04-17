@@ -4,12 +4,12 @@ import (
 	"github.com/inklabs/rangedb/pkg/shortuuid"
 )
 
-type generator struct{}
+type uuidTokenGenerator struct{}
 
-func NewGenerator() *generator {
-	return &generator{}
+func NewGenerator() *uuidTokenGenerator {
+	return &uuidTokenGenerator{}
 }
 
-func (u *generator) New() (string, error) {
-	return shortuuid.New().String(), nil
+func (u *uuidTokenGenerator) New() string {
+	return shortuuid.New().String()
 }

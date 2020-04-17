@@ -149,11 +149,7 @@ func (a *resourceOwner) Handle(command Command) {
 			return
 		}
 
-		token, err := a.tokenGenerator.New()
-		if err != nil {
-			// TODO: emit error
-			return
-		}
+		token := a.tokenGenerator.New()
 
 		a.emit(
 			AccessTokenWasIssuedToUserViaROPCGrant{
@@ -184,11 +180,7 @@ func (a *resourceOwner) Handle(command Command) {
 			return
 		}
 
-		authorizationCode, err := a.tokenGenerator.New()
-		if err != nil {
-			// TODO: emit error
-			return
-		}
+		authorizationCode := a.tokenGenerator.New()
 
 		expiresAt := a.clock.Now().Add(authorizationCodeLifetime).Unix()
 

@@ -1,12 +1,15 @@
 package goauth2_test
 
 import (
+	"bytes"
+	"log"
 	"testing"
 	"time"
 
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/clock/provider/seededclock"
 	"github.com/inklabs/rangedb/provider/inmemorystore"
+	"github.com/inklabs/rangedb/rangedbtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -79,6 +82,23 @@ func Test_OnBoardUser(t *testing.T) {
 		}).
 		Then(goauth2.OnBoardUserWasRejectedDueToInsecurePassword{
 			UserID: userID,
+		}))
+
+	var logBuffer bytes.Buffer
+	logger := log.New(&logBuffer, "", 0)
+	t.Run("fails when store cannot save events", goauth2TestCase(
+		goauth2.WithStore(rangedbtest.NewFailingEventStore()),
+		goauth2.WithLogger(logger),
+	).
+		Given().
+		When(goauth2.OnBoardUser{
+			UserID:   userID,
+			Username: email,
+			Password: password,
+		}).
+		ThenInspectEvents(func(t *testing.T, events []rangedb.Event) {
+			require.Equal(t, 0, len(events))
+			assert.Equal(t, "unable to save event: failingEventStore.Save\n", logBuffer.String())
 		}))
 }
 

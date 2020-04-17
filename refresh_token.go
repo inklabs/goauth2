@@ -81,11 +81,7 @@ func (a *refreshToken) Handle(command Command) {
 			return
 		}
 
-		nextRefreshToken, err := a.tokenGenerator.New()
-		if err != nil {
-			// TODO: emit error
-			return
-		}
+		nextRefreshToken := a.tokenGenerator.New()
 
 		if a.IsForUser {
 			a.emit(

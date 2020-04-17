@@ -2,7 +2,6 @@ package projection
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/inklabs/rangedb"
 
@@ -24,8 +23,6 @@ func (a *EmailToUserID) Accept(record *rangedb.Record) {
 	if ok {
 		a.emailToUserID[event.Username] = event.UserID
 	}
-
-	log.Printf("event type: %T", record.Data)
 }
 
 func (a *EmailToUserID) GetUserID(email string) (string, error) {
