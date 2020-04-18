@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -127,7 +128,7 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 	scope := r.Form.Get("scope")
 
 	accessToken := "f5bb89d486ee458085e476871b177ff4"
-	refreshToken := "df00e449f5f4489ea2d26e18f0015274"
+	refreshToken := ""
 
 	switch grantType {
 	case "client_credentials":
@@ -164,6 +165,11 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 
 			writeInvalidGrantResponse(w)
 			return
+		}
+
+		refreshTokenEvent, err := events.Get(&goauth2.RefreshTokenWasIssuedToUserViaROPCGrant{})
+		if err == nil {
+			refreshToken = refreshTokenEvent.(goauth2.RefreshTokenWasIssuedToUserViaROPCGrant).RefreshToken
 		}
 
 	default:
@@ -227,3 +233,15 @@ func (l *SavedEvents) Contains(events ...rangedb.Event) bool {
 	}
 	return len(events) == totalFound
 }
+
+func (l *SavedEvents) Get(event rangedb.Event) (rangedb.Event, error) {
+	for _, savedEvent := range *l {
+		if event.EventType() == savedEvent.EventType() {
+			return savedEvent, nil
+		}
+	}
+
+	return nil, EventNotFound
+}
+
+var EventNotFound = fmt.Errorf("event not found")

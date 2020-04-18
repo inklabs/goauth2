@@ -43,8 +43,7 @@ curl localhost:8080/token \
   "access_token": "d5f4985587ea46028c0946e4a240a9c1",
   "expires_at": 1574371565,
   "token_type": "Bearer",
-  "scope": "read_write",
-  "refresh_token": "5512912b2318465f92f979e771e21f0d"
+  "scope": "read_write"
 }
 ```
 

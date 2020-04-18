@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/inklabs/goauth2"
+	"github.com/inklabs/goauth2/goauth2test"
 	"github.com/inklabs/goauth2/web"
 )
 
@@ -114,9 +115,8 @@ func Test_TokenEndpoint(t *testing.T) {
 				"access_token": "%s",
 				"expires_at": %d,
 				"token_type": "Bearer",
-				"scope": "%s",
-				"refresh_token": "%s"
-			}`, accessToken, expiresAt, scope, refreshToken)
+				"scope": "%s"
+			}`, accessToken, expiresAt, scope)
 
 			// When
 			app.ServeHTTP(w, r)
@@ -190,9 +190,12 @@ func Test_TokenEndpoint(t *testing.T) {
 				PasswordHash: passwordHash,
 			},
 		)
-		app := web.New(
-			web.WithGoauth2App(goauth2.New(goauth2.WithStore(eventStore))),
+		tokenGenerator := goauth2test.NewSeededTokenGenerator(refreshToken)
+		goAuth2App := goauth2.New(
+			goauth2.WithStore(eventStore),
+			goauth2.WithTokenGenerator(tokenGenerator),
 		)
+		app := web.New(web.WithGoauth2App(goAuth2App))
 		params := &url.Values{}
 		params.Set("grant_type", ROPCGrant)
 		params.Set("username", email)
