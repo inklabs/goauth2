@@ -102,8 +102,7 @@ func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.router.ServeHTTP(w, r)
 }
 
-type accessTokenResponse struct {
-	UserId       string `json:"user_id,omitempty"`
+type AccessTokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	ExpiresAt    int    `json:"expires_at"`
 	TokenType    string `json:"token_type"`
@@ -127,64 +126,110 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 	grantType := r.Form.Get("grant_type")
 	scope := r.Form.Get("scope")
 
-	accessToken := "f5bb89d486ee458085e476871b177ff4"
-	refreshToken := ""
-
 	switch grantType {
 	case "client_credentials":
-		events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-		}))
-		if !events.Contains(&goauth2.AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{}) {
-			writeInvalidClientResponse(w)
-			return
-		}
+		a.handleClientCredentialsGrant(w, clientID, clientSecret, scope)
 
 	case "password":
-		username := r.Form.Get("username")
-		password := r.Form.Get("password")
-		userID, err := a.projections.emailToUserID.GetUserID(username)
-		if err != nil {
-			writeInvalidGrantResponse(w)
-			return
-		}
+		a.handleROPCGrant(w, r, clientID, clientSecret, scope)
 
-		events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaROPCGrant{
-			UserID:       userID,
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Username:     username,
-			Password:     password,
-		}))
-		if !events.Contains(&goauth2.AccessTokenWasIssuedToUserViaROPCGrant{}) {
-			if events.Contains(&goauth2.RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{}) {
-				writeInvalidClientResponse(w)
-				return
-			}
-
-			writeInvalidGrantResponse(w)
-			return
-		}
-
-		refreshTokenEvent, err := events.Get(&goauth2.RefreshTokenWasIssuedToUserViaROPCGrant{})
-		if err == nil {
-			refreshToken = refreshTokenEvent.(goauth2.RefreshTokenWasIssuedToUserViaROPCGrant).RefreshToken
-		}
+	case "refresh_token":
+		a.handleRefreshTokenGrant(w, r, clientID, clientSecret, scope)
 
 	default:
 		writeUnsupportedGrantTypeResponse(w)
 		return
+	}
+}
 
+func (a *app) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, clientID string, clientSecret string, scope string) {
+	refreshToken := r.Form.Get("refresh_token")
+
+	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+		RefreshToken: refreshToken,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Scope:        scope,
+	}))
+
+	refreshTokenEvent, err := events.Get(&goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{})
+	if err != nil {
+		writeInvalidGrantResponse(w)
+		return
+	}
+	issuedRefreshTokenEvent := refreshTokenEvent.(goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant)
+
+	writeJsonResponse(w, AccessTokenResponse{
+		AccessToken:  "61272356284f4340b2b1f3f1400ad4d9",
+		ExpiresAt:    1574371565,
+		TokenType:    "Bearer",
+		RefreshToken: issuedRefreshTokenEvent.NextRefreshToken,
+		Scope:        issuedRefreshTokenEvent.Scope,
+	})
+	return
+}
+
+func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID string, clientSecret string, scope string) {
+	username := r.Form.Get("username")
+	password := r.Form.Get("password")
+	userID, err := a.projections.emailToUserID.GetUserID(username)
+	if err != nil {
+		writeInvalidGrantResponse(w)
+		return
 	}
 
-	writeJsonResponse(w, accessTokenResponse{
-		AccessToken:  accessToken,
+	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaROPCGrant{
+		UserID:       userID,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Username:     username,
+		Password:     password,
+		Scope:        scope,
+	}))
+	if !events.Contains(&goauth2.AccessTokenWasIssuedToUserViaROPCGrant{}) {
+		if events.Contains(&goauth2.RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{}) {
+			writeInvalidClientResponse(w)
+			return
+		}
+
+		writeInvalidGrantResponse(w)
+		return
+	}
+
+	var refreshToken string
+
+	refreshTokenEvent, err := events.Get(&goauth2.RefreshTokenWasIssuedToUserViaROPCGrant{})
+	if err == nil {
+		refreshToken = refreshTokenEvent.(goauth2.RefreshTokenWasIssuedToUserViaROPCGrant).RefreshToken
+	}
+
+	writeJsonResponse(w, AccessTokenResponse{
+		AccessToken:  "f5bb89d486ee458085e476871b177ff4",
 		ExpiresAt:    1574371565,
 		TokenType:    "Bearer",
 		RefreshToken: refreshToken,
 		Scope:        scope,
 	})
+	return
+}
+
+func (a *app) handleClientCredentialsGrant(w http.ResponseWriter, clientID string, clientSecret string, scope string) {
+	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	}))
+	if !events.Contains(&goauth2.AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{}) {
+		writeInvalidClientResponse(w)
+		return
+	}
+
+	writeJsonResponse(w, AccessTokenResponse{
+		AccessToken: "f5bb89d486ee458085e476871b177ff4",
+		ExpiresAt:   1574371565,
+		TokenType:   "Bearer",
+		Scope:       scope,
+	})
+	return
 }
 
 type errorResponse struct {

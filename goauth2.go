@@ -68,6 +68,10 @@ func New(options ...Option) *App {
 		newClientApplicationCommandAuthorization(app.store),
 	}
 
+	app.store.Subscribe(
+		newRefreshTokenProcessManager(app.Dispatch),
+	)
+
 	return app
 }
 
@@ -113,6 +117,9 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 
 	case RequestAccessTokenViaAuthorizationCodeGrant:
 		events = a.handleWithAuthorizationCodeAggregate(command)
+
+	case IssueRefreshTokenToUser:
+		events = a.handleWithRefreshTokenAggregate(command)
 
 	}
 

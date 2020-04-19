@@ -28,6 +28,7 @@ type RequestAccessTokenViaROPCGrant struct {
 	ClientSecret string `json:"clientSecret"`
 	Username     string `json:"username"`
 	Password     string `json:"password"`
+	Scope        string `json:"scope"`
 }
 type RequestAuthorizationCodeViaAuthorizationCodeGrant struct {
 	UserID      string `json:"userID"`

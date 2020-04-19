@@ -82,7 +82,8 @@ type AccessTokenWasIssuedToUserViaROPCGrant struct {
 type RefreshTokenWasIssuedToUserViaROPCGrant struct {
 	UserID       string `json:"userID"`
 	ClientID     string `json:"clientID"`
-	RefreshToken string `json:"token"`
+	RefreshToken string `json:"refreshToken"`
+	Scope        string `json:"scope"`
 }
 type RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUser struct {
 	UserID   string `json:"userID"`

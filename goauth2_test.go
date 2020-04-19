@@ -30,6 +30,7 @@ const (
 	adminEmail          = "admin@example.com"
 	passwordHash        = "$2a$10$U6ej0p2d9Y8OO2635R7l/O4oEBvxgc9o6gCaQ1wjMZ77dr4qGl8nu"
 	password            = "Pass123!"
+	scope               = "read_write"
 	refreshToken        = "1eff35434eee448884a2d7e2dd28b119"
 	nextRefreshToken    = "18cb764961464db9b259550c6568fa4d"
 	authorizationCode   = "afa410b917034f67b64ec9164bf4140d"
@@ -511,6 +512,7 @@ func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 			ClientSecret: clientSecret,
 			Username:     email,
 			Password:     password,
+			Scope:        scope,
 		}).
 		Then(
 			goauth2.AccessTokenWasIssuedToUserViaROPCGrant{
@@ -521,6 +523,13 @@ func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 				UserID:       userID,
 				ClientID:     clientID,
 				RefreshToken: refreshToken,
+				Scope:        scope,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
 			},
 		))
 
@@ -664,7 +673,57 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.RefreshTokenWasIssuedToUser{
 				RefreshToken: refreshToken,
 				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Scope:        scope,
+		}).
+		Then(
+			goauth2.AccessTokenWasIssuedToUserViaRefreshTokenGrant{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+			},
+			goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
+				RefreshToken:     refreshToken,
+				UserID:           userID,
+				ClientID:         clientID,
+				NextRefreshToken: nextRefreshToken,
+				Scope:            scope,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: nextRefreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
+			},
+		))
+
+	t.Run("access and refresh tokens are issued to user without providing scope", goauth2TestCase(
+		goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(nextRefreshToken)),
+	).
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
 				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
 			},
 		).
 		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
@@ -676,11 +735,20 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.AccessTokenWasIssuedToUserViaRefreshTokenGrant{
 				RefreshToken: refreshToken,
 				UserID:       userID,
+				ClientID:     clientID,
 			},
 			goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
 				RefreshToken:     refreshToken,
 				UserID:           userID,
+				ClientID:         clientID,
 				NextRefreshToken: nextRefreshToken,
+				Scope:            scope,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: nextRefreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
 			},
 		))
 
@@ -737,6 +805,39 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			ClientID:     clientID,
 		}))
 
+	t.Run("rejected due to invalid scope", goauth2TestCase().
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+			RefreshToken: refreshToken,
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Scope:        "invalid-scope",
+		}).
+		Then(goauth2.RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidScope{
+			RefreshToken:   refreshToken,
+			ClientID:       clientID,
+			Scope:          scope,
+			RequestedScope: "invalid-scope",
+		}))
+
 	t.Run("rejected due to previously used refresh token", goauth2TestCase().
 		Given(
 			goauth2.ClientApplicationWasOnBoarded{
@@ -753,7 +854,8 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.RefreshTokenWasIssuedToUser{
 				RefreshToken: refreshToken,
 				UserID:       userID,
-				Username:     email,
+				ClientID:     clientID,
+				Scope:        scope,
 			},
 			goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
 				RefreshToken:     refreshToken,
@@ -786,7 +888,8 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.RefreshTokenWasIssuedToUser{
 				RefreshToken: refreshToken,
 				UserID:       userID,
-				Username:     email,
+				ClientID:     clientID,
+				Scope:        scope,
 			},
 			goauth2.RefreshTokenWasRevoked{
 				RefreshToken: refreshToken,

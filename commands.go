@@ -14,3 +14,5 @@ type PreCommandHandler interface {
 	PendingEvents
 	Handle(command Command) (shouldContinue bool)
 }
+
+type CommandDispatcher func(command Command) []rangedb.Event

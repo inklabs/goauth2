@@ -11,6 +11,7 @@ import (
 	"github.com/inklabs/rangedb/pkg/rangedbapi"
 	"github.com/inklabs/rangedb/pkg/rangedbui"
 	"github.com/inklabs/rangedb/pkg/rangedbui/pkg/templatemanager/provider/memorytemplate"
+	"github.com/inklabs/rangedb/pkg/shortuuid"
 	"github.com/inklabs/rangedb/provider/inmemorystore"
 
 	"github.com/inklabs/goauth2"
@@ -55,6 +56,8 @@ func main() {
 func initDB(goauth2App *goauth2.App, store rangedb.Store) {
 	const userID = "445a57a41b7b43e285b51e99bba10a79"
 
+	shortuuid.SetRand(100)
+
 	goauth2App.Dispatch(goauth2.OnBoardUser{
 		UserID:   userID,
 		Username: "john@example.com",
@@ -92,4 +95,14 @@ func initDB(goauth2App *goauth2.App, store rangedb.Store) {
         -d "username=john@example.com" \
         -d "password=p45w0rd" \
         -d "scope=read_write"`)
+
+	fmt.Println(`curl localhost:8080/token \
+        -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+        -d "grant_type=refresh_token" \
+        -d "refresh_token=3cc6fa5b470642b081e3ebd29aa9b43c"`)
+
+	fmt.Println(`curl localhost:8080/token \
+        -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+        -d "grant_type=refresh_token" \
+        -d "refresh_token=93b5e8869a954faaa6c6ba73dfea1a09"`)
 }

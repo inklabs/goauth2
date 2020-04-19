@@ -6,4 +6,11 @@ type RequestAccessTokenViaRefreshTokenGrant struct {
 	RefreshToken string `json:"refreshToken"`
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
+	Scope        string `json:"scope"`
+}
+type IssueRefreshTokenToUser struct {
+	RefreshToken string `json:"refreshToken"`
+	UserID       string `json:"userID"`
+	ClientID     string `json:"clientID"`
+	Scope        string `json:"scope"`
 }

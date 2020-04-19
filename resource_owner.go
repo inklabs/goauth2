@@ -160,6 +160,7 @@ func (a *resourceOwner) Handle(command Command) {
 				UserID:       c.UserID,
 				ClientID:     c.ClientID,
 				RefreshToken: token,
+				Scope:        c.Scope,
 			},
 		)
 

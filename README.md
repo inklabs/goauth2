@@ -86,6 +86,51 @@ curl localhost:8080/token \
   "expires_at": 1574371565,
   "token_type": "Bearer",
   "scope": "read_write",
-  "refresh_token": "8fc94d5d75cc4ddd9bc6b5d13ebed390"
+  "refresh_token": "3a801b1fc3d847599b3d5719d82bca7b"
+}
+```
+
+## Refresh Token
+
+https://tools.ietf.org/html/rfc6749#section-1.5
+http://tools.ietf.org/html/rfc6749#section-6
+
+```
++--------+                                           +---------------+
+|        |--(A)------- Authorization Grant --------->|               |
+|        |                                           |               |
+|        |<-(B)----------- Access Token -------------|               |
+|        |               & Refresh Token             |               |
+|        |                                           |               |
+|        |                            +----------+   |               |
+|        |--(C)---- Access Token ---->|          |   |               |
+|        |                            |          |   |               |
+|        |<-(D)- Protected Resource --| Resource |   | Authorization |
+| Client |                            |  Server  |   |     Server    |
+|        |--(E)---- Access Token ---->|          |   |               |
+|        |                            |          |   |               |
+|        |<-(F)- Invalid Token Error -|          |   |               |
+|        |                            +----------+   |               |
+|        |                                           |               |
+|        |--(G)----------- Refresh Token ----------->|               |
+|        |                                           |               |
+|        |<-(H)----------- Access Token -------------|               |
++--------+           & Optional Refresh Token        +---------------+
+```
+
+```shell script
+curl localhost:8080/token \
+    -u client_id_hash:client_secret_hash \
+    -d "grant_type=refresh_token" \
+    -d "refresh_token=3a801b1fc3d847599b3d5719d82bca7b"
+```
+
+```json
+{
+  "access_token": "97ed11d0d399454eb5ab2cab8b29f600",
+  "expires_at": 1574371565,
+  "token_type": "Bearer",
+  "scope": "read_write",
+  "refresh_token": "b4c69a71124641739f6a83b786b332d3"
 }
 ```

@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -33,9 +34,12 @@ const (
 	state                  = "some-state"
 	scope                  = "read_write"
 	accessToken            = "f5bb89d486ee458085e476871b177ff4"
+	nextAccessToken        = "61272356284f4340b2b1f3f1400ad4d9"
 	refreshToken           = "df00e449f5f4489ea2d26e18f0015274"
+	nextRefreshToken       = "915ce1b4bb8748e6930595de08cbe328"
 	clientCredentialsGrant = "client_credentials"
 	ROPCGrant              = "password"
+	RefreshTokenGrant      = "refresh_token"
 )
 
 var TemplateAssets = http.Dir("./templates")
@@ -299,6 +303,122 @@ func Test_TokenEndpoint(t *testing.T) {
 			assertJsonHeaders(t, w)
 			assert.Equal(t, `{"error":"invalid_grant"}`, w.Body.String())
 		})
+	})
+
+	t.Run("issues access and refresh token from refresh token request", func(t *testing.T) {
+		// Given
+		eventStore := getStoreWithEvents(t,
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+		)
+		tokenGenerator := goauth2test.NewSeededTokenGenerator(refreshToken, nextRefreshToken)
+		goAuth2App := goauth2.New(
+			goauth2.WithStore(eventStore),
+			goauth2.WithTokenGenerator(tokenGenerator),
+		)
+		app := web.New(web.WithGoauth2App(goAuth2App))
+		params := &url.Values{}
+		params.Set("grant_type", ROPCGrant)
+		params.Set("username", email)
+		params.Set("password", password)
+		params.Set("scope", scope)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+		r.SetBasicAuth(clientID, clientSecret)
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+		app.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		var accessTokenResponse web.AccessTokenResponse
+		err := json.Unmarshal(w.Body.Bytes(), &accessTokenResponse)
+		require.NoError(t, err)
+
+		refreshParams := &url.Values{}
+		refreshParams.Set("grant_type", RefreshTokenGrant)
+		refreshParams.Set("refresh_token", accessTokenResponse.RefreshToken)
+		w = httptest.NewRecorder()
+		r = httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(refreshParams.Encode()))
+		r.SetBasicAuth(clientID, clientSecret)
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+		expiresAt := 1574371565
+		expectedBody := fmt.Sprintf(`{
+				"access_token": "%s",
+				"expires_at": %d,
+				"token_type": "Bearer",
+				"scope": "%s",
+				"refresh_token": "%s"
+			}`, nextAccessToken, expiresAt, scope, nextRefreshToken)
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		assertJsonHeaders(t, w)
+		assert.JSONEq(t, expectedBody, w.Body.String())
+	})
+
+	t.Run("refresh token grant fails from invalid refresh token", func(t *testing.T) {
+		// Given
+		eventStore := getStoreWithEvents(t,
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectUri:  redirectUri,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+		)
+		tokenGenerator := goauth2test.NewSeededTokenGenerator(refreshToken)
+		goAuth2App := goauth2.New(
+			goauth2.WithStore(eventStore),
+			goauth2.WithTokenGenerator(tokenGenerator),
+		)
+		app := web.New(web.WithGoauth2App(goAuth2App))
+		params := &url.Values{}
+		params.Set("grant_type", ROPCGrant)
+		params.Set("username", email)
+		params.Set("password", password)
+		params.Set("scope", scope)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+		r.SetBasicAuth(clientID, clientSecret)
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+		app.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+		var accessTokenResponse web.AccessTokenResponse
+		err := json.Unmarshal(w.Body.Bytes(), &accessTokenResponse)
+		require.NoError(t, err)
+
+		refreshParams := &url.Values{}
+		refreshParams.Set("grant_type", RefreshTokenGrant)
+		refreshParams.Set("refresh_token", "wrong-token")
+		w = httptest.NewRecorder()
+		r = httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(refreshParams.Encode()))
+		r.SetBasicAuth(clientID, clientSecret)
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+		assertJsonHeaders(t, w)
+		assert.JSONEq(t, `{"error":"invalid_grant"}`, w.Body.String())
 	})
 
 	t.Run("fails with invalid HTTP form request", func(t *testing.T) {

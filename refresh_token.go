@@ -7,6 +7,7 @@ import (
 type refreshToken struct {
 	tokenGenerator         TokenGenerator
 	Token                  string
+	Scope                  string
 	PendingEvents          []rangedb.Event
 	Username               string
 	IsLoaded               bool
@@ -39,7 +40,7 @@ func (a *refreshToken) apply(event rangedb.Event) {
 		a.IsLoaded = true
 		a.IsForUser = true
 		a.UserID = e.UserID
-		a.Username = e.Username
+		a.Scope = e.Scope
 
 	case *RefreshTokenWasIssuedToClientApplication:
 		a.IsLoaded = true
@@ -81,6 +82,16 @@ func (a *refreshToken) Handle(command Command) {
 			return
 		}
 
+		if c.Scope != "" && a.Scope != c.Scope {
+			a.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidScope{
+				RefreshToken:   c.RefreshToken,
+				ClientID:       c.ClientID,
+				Scope:          a.Scope,
+				RequestedScope: c.Scope,
+			})
+			return
+		}
+
 		nextRefreshToken := a.tokenGenerator.New()
 
 		if a.IsForUser {
@@ -88,11 +99,14 @@ func (a *refreshToken) Handle(command Command) {
 				AccessTokenWasIssuedToUserViaRefreshTokenGrant{
 					RefreshToken: c.RefreshToken,
 					UserID:       a.UserID,
+					ClientID:     c.ClientID,
 				},
 				RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
 					RefreshToken:     c.RefreshToken,
 					UserID:           a.UserID,
+					ClientID:         c.ClientID,
 					NextRefreshToken: nextRefreshToken,
+					Scope:            a.Scope,
 				},
 			)
 		} else if a.IsForClientApplication {
@@ -109,6 +123,13 @@ func (a *refreshToken) Handle(command Command) {
 			)
 		}
 
+	case IssueRefreshTokenToUser:
+		a.emit(RefreshTokenWasIssuedToUser{
+			RefreshToken: c.RefreshToken,
+			UserID:       c.UserID,
+			ClientID:     c.ClientID,
+			Scope:        c.Scope,
+		})
 	}
 }
 
