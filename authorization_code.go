@@ -91,6 +91,15 @@ func (a *authorizationCode) Handle(command Command) {
 			},
 		)
 
+	case IssueAuthorizationCodeToUser:
+		a.emit(AuthorizationCodeWasIssuedToUser{
+			AuthorizationCode: c.AuthorizationCode,
+			UserID:            c.UserID,
+			ClientID:          c.ClientID,
+			ExpiresAt:         c.ExpiresAt,
+			Scope:             c.Scope,
+		})
+
 	}
 }
 

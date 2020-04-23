@@ -6,7 +6,9 @@ package goauth2
 type AuthorizationCodeWasIssuedToUser struct {
 	AuthorizationCode string `json:"authorizationCode"`
 	UserID            string `json:"userID"`
+	ClientID          string `json:"clientID"`
 	ExpiresAt         int64  `json:"expiresAt"`
+	Scope             string `json:"scope"`
 }
 type AccessTokenWasIssuedToUserViaAuthorizationCodeGrant struct {
 	AuthorizationCode string `json:"authorizationCode"`
@@ -27,10 +29,10 @@ type RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApp
 	AuthorizationCode string `json:"authorizationCode"`
 	ClientID          string `json:"clientID"`
 }
-type RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri struct {
+type RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI struct {
 	AuthorizationCode string `json:"authorizationCode"`
 	ClientID          string `json:"clientID"`
-	RedirectUri       string `json:"redirectUri"`
+	RedirectURI       string `json:"redirectURI"`
 }
 type RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidAuthorizationCode struct {
 	AuthorizationCode string `json:"authorizationCode"`

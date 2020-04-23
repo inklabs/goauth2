@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 
 	"github.com/gorilla/mux"
 	"github.com/inklabs/rangedb"
@@ -61,6 +62,7 @@ func New(options ...Option) *app {
 
 func (a *app) initRoutes() {
 	a.router = mux.NewRouter().StrictSlash(true)
+	a.router.HandleFunc("/authorize", a.authorize)
 	a.router.HandleFunc("/login", a.login)
 	a.router.HandleFunc("/token", a.token)
 }
@@ -70,23 +72,85 @@ func (a *app) initProjections() {
 	a.goauth2App.SubscribeAndReplay(a.projections.emailToUserID)
 }
 
+func (a *app) authorize(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	username := r.Form.Get("username")
+	password := r.Form.Get("password")
+	clientID := r.Form.Get("client_id")
+	redirectURI := r.Form.Get("redirect_uri")
+	responseType := r.Form.Get("response_type")
+	state := r.Form.Get("state")
+	scope := r.Form.Get("scope")
+
+	newParams := url.Values{}
+
+	switch responseType {
+	case "code":
+		userID, err := a.projections.emailToUserID.GetUserID(username)
+		if err != nil {
+			errorRedirect(w, r, redirectURI, "access_denied", state)
+			return
+		}
+
+		events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
+			UserID:      userID,
+			ClientID:    clientID,
+			RedirectURI: redirectURI,
+			Username:    username,
+			Password:    password,
+			Scope:       scope,
+		}))
+		authorizationEvent, err := events.Get(&goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{})
+		if err != nil {
+			errorRedirect(w, r, redirectURI, "access_denied", state)
+			return
+		}
+
+		issuedEvent := authorizationEvent.(goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant)
+		newParams.Set("code", issuedEvent.AuthorizationCode)
+	}
+
+	if state != "" {
+		newParams.Set("state", state)
+	}
+
+	uri := fmt.Sprintf("%s?%s", redirectURI, newParams.Encode())
+	http.Redirect(w, r, uri, http.StatusFound)
+}
+
+func errorRedirect(w http.ResponseWriter, r *http.Request, redirectURI, errorMessage, state string) {
+	query := url.Values{}
+	query.Set("error", errorMessage)
+
+	if state != "" {
+		query.Set("state", state)
+	}
+	uri := fmt.Sprintf("%s?%s", redirectURI, query.Encode())
+	http.Redirect(w, r, uri, http.StatusFound)
+}
+
 func (a *app) login(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 	clientId := params.Get("client_id")
-	redirectUri := params.Get("redirect_uri")
+	redirectURI := params.Get("redirect_uri")
 	responseType := params.Get("response_type")
 	state := params.Get("state")
 	scope := params.Get("scope")
 
 	err := a.templateManager.RenderTemplate(w, "login.html", struct {
 		ClientId     string
-		RedirectUri  string
+		RedirectURI  string
 		ResponseType string
 		Scope        string
 		State        string
 	}{
 		ClientId:     clientId,
-		RedirectUri:  redirectUri,
+		RedirectURI:  redirectURI,
 		ResponseType: responseType,
 		Scope:        scope,
 		State:        state,

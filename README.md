@@ -19,7 +19,7 @@ docker run -p 8080:8080 inklabs/goauth2
 
 ## Client Credentials Grant
 
-http://tools.ietf.org/html/rfc6749#section-4.4
+* https://tools.ietf.org/html/rfc6749#section-4.4
 
 ```
 +---------+                                  +---------------+
@@ -49,7 +49,7 @@ curl localhost:8080/token \
 
 ## Resource Owner Password Credentials
 
-http://tools.ietf.org/html/rfc6749#section-4.3
+* https://tools.ietf.org/html/rfc6749#section-4.3
 
 ```
 +----------+
@@ -76,7 +76,7 @@ curl localhost:8080/token \
     -u client_id_hash:client_secret_hash \
     -d "grant_type=password" \
     -d "username=john@example.com" \
-    -d "password=p45w0rd" \
+    -d "password=Pass123!" \
     -d "scope=read_write"
 ```
 
@@ -92,8 +92,8 @@ curl localhost:8080/token \
 
 ## Refresh Token
 
-https://tools.ietf.org/html/rfc6749#section-1.5
-http://tools.ietf.org/html/rfc6749#section-6
+* https://tools.ietf.org/html/rfc6749#section-1.5
+* https://tools.ietf.org/html/rfc6749#section-6
 
 ```
 +--------+                                           +---------------+
@@ -132,5 +132,68 @@ curl localhost:8080/token \
   "token_type": "Bearer",
   "scope": "read_write",
   "refresh_token": "b4c69a71124641739f6a83b786b332d3"
+}
+```
+
+## Authorization Code
+
+* https://tools.ietf.org/html/rfc6749#section-4.1
+
+```
++----------+
+| Resource |
+|   Owner  |
+|          |
++----------+
+     ^
+     |
+    (B)
++----|-----+          Client Identifier      +---------------+
+|         -+----(A)-- & Redirection URI ---->|               |
+|  User-   |                                 | Authorization |
+|  Agent  -+----(B)-- User authenticates --->|     Server    |
+|          |                                 |               |
+|         -+----(C)-- Authorization Code ---<|               |
++-|----|---+                                 +---------------+
+  |    |                                         ^      v
+ (A)  (C)                                        |      |
+  |    |                                         |      |
+  ^    v                                         |      |
++---------+                                      |      |
+|         |>---(D)-- Authorization Code ---------'      |
+|  Client |          & Redirection URI                  |
+|         |                                             |
+|         |<---(E)----- Access Token -------------------'
++---------+       (w/ Optional Refresh Token)
+```
+
+```
+open http://localhost:8080/authorize?client_id=client_id_hash&redirect_uri=https%3A%2F%2Fexample.com%2Foauth2%2Fcallback&response_type=code&state=somestate&scope=read_write
+```
+
+1. Login via the web form (john@example.com | Pass123!)
+1. Click button to grant access
+1. The authorization server redirects back to the redirection URI including an authorization code and any
+   state provided by the client
+
+```
+https://example.com/oauth2/callback?code=36e2807ee1f94252ac2d9b1d3adf2ba2&state=somestate
+```
+
+```shell script
+curl localhost:8080/token \
+    -u client_id_hash:client_secret_hash \
+    -d "grant_type=authorization_code" \
+    -d "code=36e2807ee1f94252ac2d9b1d3adf2ba2" \
+    -d "redirect_uri=https://example.com/oauth2/callback"
+```
+
+```json
+{
+  "access_token": "865382b944024b2394167d519fa80cba",
+  "expires_at": 1574371565,
+  "token_type": "Bearer",
+  "scope": "read_write",
+  "refresh_token": "48403032170e46e8af72b7cca1612b43"
 }
 ```

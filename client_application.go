@@ -10,7 +10,7 @@ type clientApplication struct {
 	IsOnBoarded   bool
 	ClientID      string
 	ClientSecret  string
-	RedirectUri   string
+	RedirectURI   string
 	pendingEvents []rangedb.Event
 }
 
@@ -32,7 +32,7 @@ func (a *clientApplication) apply(event rangedb.Event) {
 		a.IsOnBoarded = true
 		a.ClientID = e.ClientID
 		a.ClientSecret = e.ClientSecret
-		a.RedirectUri = e.RedirectUri
+		a.RedirectURI = e.RedirectURI
 
 	}
 }
@@ -41,19 +41,19 @@ func (a *clientApplication) Handle(command Command) {
 	switch c := command.(type) {
 
 	case OnBoardClientApplication:
-		uri, err := url.Parse(c.RedirectUri)
+		uri, err := url.Parse(c.RedirectURI)
 		if err != nil {
-			a.emit(OnBoardClientApplicationWasRejectedDueToInvalidRedirectUri{
+			a.emit(OnBoardClientApplicationWasRejectedDueToInvalidRedirectURI{
 				ClientID:    c.ClientID,
-				RedirectUri: c.RedirectUri,
+				RedirectURI: c.RedirectURI,
 			})
 			return
 		}
 
 		if uri.Scheme != "https" {
-			a.emit(OnBoardClientApplicationWasRejectedDueToInsecureRedirectUri{
+			a.emit(OnBoardClientApplicationWasRejectedDueToInsecureRedirectURI{
 				ClientID:    c.ClientID,
-				RedirectUri: c.RedirectUri,
+				RedirectURI: c.RedirectURI,
 			})
 			return
 		}
@@ -61,7 +61,7 @@ func (a *clientApplication) Handle(command Command) {
 		a.emit(ClientApplicationWasOnBoarded{
 			ClientID:     c.ClientID,
 			ClientSecret: c.ClientSecret,
-			RedirectUri:  c.RedirectUri,
+			RedirectURI:  c.RedirectURI,
 			UserID:       c.UserID,
 		})
 

@@ -187,8 +187,10 @@ func (a *resourceOwner) Handle(command Command) {
 
 		a.emit(AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{
 			UserID:            c.UserID,
+			ClientID:          c.ClientID,
 			AuthorizationCode: authorizationCode,
 			ExpiresAt:         expiresAt,
+			Scope:             c.Scope,
 		})
 
 	}

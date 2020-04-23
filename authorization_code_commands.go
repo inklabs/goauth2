@@ -6,6 +6,13 @@ type RequestAccessTokenViaAuthorizationCodeGrant struct {
 	AuthorizationCode string `json:"authorizationCode"`
 	ClientID          string `json:"clientID"`
 	ClientSecret      string `json:"clientSecret"`
-	RedirectUri       string `json:"redirectUri"`
+	RedirectURI       string `json:"redirectURI"`
 	UserID            string `json:"userID"`
+}
+type IssueAuthorizationCodeToUser struct {
+	AuthorizationCode string `json:"authorizationCode"`
+	UserID            string `json:"userID"`
+	ClientID          string `json:"clientID"`
+	ExpiresAt         int64  `json:"expiresAt"`
+	Scope             string `json:"scope"`
 }

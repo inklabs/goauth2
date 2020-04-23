@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/pkg/clock/provider/sequentialclock"
 	"github.com/inklabs/rangedb/provider/inmemorystore"
 	"github.com/inklabs/rangedb/provider/jsonrecordserializer"
 	"github.com/inklabs/rangedb/rangedbtest"
@@ -29,7 +30,7 @@ const (
 	email                  = "john@example.com"
 	password               = "Pass123!"
 	passwordHash           = "$2a$10$U6ej0p2d9Y8OO2635R7l/O4oEBvxgc9o6gCaQ1wjMZ77dr4qGl8nu"
-	redirectUri            = "https://www.example.com"
+	redirectURI            = "https://example.com/oauth2/callback"
 	codeResponseType       = "code"
 	state                  = "some-state"
 	scope                  = "read_write"
@@ -37,6 +38,7 @@ const (
 	nextAccessToken        = "61272356284f4340b2b1f3f1400ad4d9"
 	refreshToken           = "df00e449f5f4489ea2d26e18f0015274"
 	nextRefreshToken       = "915ce1b4bb8748e6930595de08cbe328"
+	authorizationCode      = "2441fd0e215f4568b67c872d39f95a3f"
 	clientCredentialsGrant = "client_credentials"
 	ROPCGrant              = "password"
 	RefreshTokenGrant      = "refresh_token"
@@ -63,7 +65,7 @@ func Test_Login_ServesLoginForm(t *testing.T) {
 	assert.Equal(t, "HTTP/1.1", w.Result().Proto)
 	assert.Contains(t, body, "form")
 	assert.Contains(t, body, clientID)
-	assert.Contains(t, body, redirectUri)
+	assert.Contains(t, body, redirectURI)
 	assert.Contains(t, body, codeResponseType)
 	assert.Contains(t, body, scope)
 	assert.Contains(t, body, state)
@@ -90,14 +92,14 @@ func Test_Login_FailsToServeLoginForm(t *testing.T) {
 }
 
 func Test_TokenEndpoint(t *testing.T) {
-	const tokenUri = "/token"
+	const tokenURI = "/token"
 	t.Run("Client Credentials Grant Type with client application on-boarded", func(t *testing.T) {
 		// Given
 		eventStore := getStoreWithEvents(t,
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 		)
@@ -111,7 +113,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		t.Run("issues access and refresh token", func(t *testing.T) {
 			// Given
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 			expiresAt := 1574371565
@@ -134,7 +136,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		t.Run("fails with missing clientID and clientSecret", func(t *testing.T) {
 			// Given
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
 			// When
@@ -149,7 +151,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		t.Run("fails with invalid client application id", func(t *testing.T) {
 			// Given
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth("invalid-client-id", clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
@@ -165,7 +167,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		t.Run("fails with invalid client application secret", func(t *testing.T) {
 			// Given
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, "invalid-client-secret")
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
@@ -185,7 +187,7 @@ func Test_TokenEndpoint(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -209,7 +211,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		t.Run("issues access and refresh token", func(t *testing.T) {
 			// Given
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 			expiresAt := 1574371565
@@ -233,7 +235,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		t.Run("fails with invalid client application id", func(t *testing.T) {
 			// Given
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth("invalid-client-id", clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
@@ -249,7 +251,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		t.Run("fails with invalid client application secret", func(t *testing.T) {
 			// Given
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, "invalid-client-secret")
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
@@ -270,7 +272,7 @@ func Test_TokenEndpoint(t *testing.T) {
 			params.Set("password", password)
 			params.Set("scope", scope)
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
@@ -291,7 +293,7 @@ func Test_TokenEndpoint(t *testing.T) {
 			params.Set("password", "wrong-password")
 			params.Set("scope", scope)
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
@@ -311,7 +313,7 @@ func Test_TokenEndpoint(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -332,7 +334,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		params.Set("password", password)
 		params.Set("scope", scope)
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+		r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 		r.SetBasicAuth(clientID, clientSecret)
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 		app.ServeHTTP(w, r)
@@ -346,7 +348,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		refreshParams.Set("grant_type", RefreshTokenGrant)
 		refreshParams.Set("refresh_token", accessTokenResponse.RefreshToken)
 		w = httptest.NewRecorder()
-		r = httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(refreshParams.Encode()))
+		r = httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(refreshParams.Encode()))
 		r.SetBasicAuth(clientID, clientSecret)
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 		expiresAt := 1574371565
@@ -373,7 +375,7 @@ func Test_TokenEndpoint(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -394,7 +396,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		params.Set("password", password)
 		params.Set("scope", scope)
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+		r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 		r.SetBasicAuth(clientID, clientSecret)
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 		app.ServeHTTP(w, r)
@@ -408,7 +410,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		refreshParams.Set("grant_type", RefreshTokenGrant)
 		refreshParams.Set("refresh_token", "wrong-token")
 		w = httptest.NewRecorder()
-		r = httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(refreshParams.Encode()))
+		r = httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(refreshParams.Encode()))
 		r.SetBasicAuth(clientID, clientSecret)
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
@@ -425,7 +427,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		// Given
 		app := web.New()
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader("%invalid-form"))
+		r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader("%invalid-form"))
 		r.SetBasicAuth(clientID, clientSecret)
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
@@ -444,7 +446,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		params.Set("grant_type", "invalid-grant-type")
 		params.Set("scope", scope)
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, tokenUri, strings.NewReader(params.Encode()))
+		r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 		r.SetBasicAuth(clientID, clientSecret)
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
@@ -455,6 +457,109 @@ func Test_TokenEndpoint(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
 		assertJsonHeaders(t, w)
 		assert.Equal(t, `{"error":"unsupported_grant_type"}`, w.Body.String())
+	})
+}
+
+func Test_AuthorizeEndpoint(t *testing.T) {
+	const authorizeURI = "/authorize"
+	t.Run("grants authorization code and redirects", func(t *testing.T) {
+		// Given
+		eventStore := getStoreWithEvents(t,
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectURI:  redirectURI,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+		)
+		app := web.New(web.WithGoauth2App(goauth2.New(
+			goauth2.WithStore(eventStore),
+			goauth2.WithClock(sequentialclock.New()),
+			goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
+		)))
+		params := getAuthorizeParams()
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusFound, w.Result().StatusCode)
+		assert.Equal(t, "", w.Body.String())
+		expectedLocation := "https://example.com/oauth2/callback?code=2441fd0e215f4568b67c872d39f95a3f&state=some-state"
+		assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+	})
+
+	t.Run("fails with invalid HTTP form request", func(t *testing.T) {
+		// Given
+		app := web.New()
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader("%invalid-form"))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+		assert.Contains(t, w.Body.String(), "invalid request")
+	})
+
+	t.Run("fails with missing user", func(t *testing.T) {
+		// Given
+		app := web.New()
+		params := getAuthorizeParams()
+		params.Set("username", "wrong-email@example.com")
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusFound, w.Result().StatusCode)
+		expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
+		assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+	})
+
+	t.Run("fails with invalid user password", func(t *testing.T) {
+		// Given
+		eventStore := getStoreWithEvents(t,
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectURI:  redirectURI,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+		)
+		app := web.New(web.WithGoauth2App(goauth2.New(goauth2.WithStore(eventStore))))
+		params := getAuthorizeParams()
+		params.Set("password", "wrong-pass")
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusFound, w.Result().StatusCode)
+		expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
+		assert.Equal(t, expectedLocation, w.Header().Get("Location"))
 	})
 }
 
@@ -474,8 +579,10 @@ func Test_SavedEvents(t *testing.T) {
 
 func getAuthorizeParams() *url.Values {
 	params := &url.Values{}
+	params.Set("username", email)
+	params.Set("password", password)
 	params.Set("client_id", clientID)
-	params.Set("redirect_uri", redirectUri)
+	params.Set("redirect_uri", redirectURI)
 	params.Set("response_type", codeResponseType)
 	params.Set("scope", scope)
 	params.Set("state", state)

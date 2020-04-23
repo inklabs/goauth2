@@ -29,11 +29,11 @@ func (h *clientApplicationCommandAuthorization) Handle(command Command) bool {
 			return false
 		}
 
-		if clientApplication.RedirectUri != c.RedirectUri {
-			h.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+		if clientApplication.RedirectURI != c.RedirectURI {
+			h.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 				UserID:      c.UserID,
 				ClientID:    c.ClientID,
-				RedirectUri: c.RedirectUri,
+				RedirectURI: c.RedirectURI,
 			})
 			return false
 		}
@@ -87,11 +87,11 @@ func (h *clientApplicationCommandAuthorization) Handle(command Command) bool {
 			return false
 		}
 
-		if clientApplication.RedirectUri != c.RedirectUri {
-			h.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+		if clientApplication.RedirectURI != c.RedirectURI {
+			h.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 				UserID:      c.UserID,
 				ClientID:    c.ClientID,
-				RedirectUri: c.RedirectUri,
+				RedirectURI: c.RedirectURI,
 			})
 			return false
 		}
@@ -115,11 +115,11 @@ func (h *clientApplicationCommandAuthorization) Handle(command Command) bool {
 			return false
 		}
 
-		if clientApplication.RedirectUri != c.RedirectUri {
-			h.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+		if clientApplication.RedirectURI != c.RedirectURI {
+			h.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 				AuthorizationCode: c.AuthorizationCode,
 				ClientID:          c.ClientID,
-				RedirectUri:       c.RedirectUri,
+				RedirectURI:       c.RedirectURI,
 			})
 			return false
 		}

@@ -5,7 +5,7 @@ package goauth2
 type OnBoardClientApplication struct {
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
-	RedirectUri  string `json:"redirectUri"`
+	RedirectURI  string `json:"redirectURI"`
 	UserID       string `json:"userID"`
 }
 type RequestAccessTokenViaClientCredentialsGrant struct {

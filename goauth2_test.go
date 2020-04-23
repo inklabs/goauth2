@@ -20,10 +20,10 @@ import (
 const (
 	clientID            = "7d327d51d1304341a21c1242fcb089f4"
 	clientSecret        = "c389e799ac0e4568b1c4b4c96b670605"
-	redirectUri         = "https://example.com/oauth2/callback"
-	wrongRedirectUri    = "https://example.com/wrong/redirect/uri"
-	invalidRedirectUri  = "://invalid-uri"
-	insecureRedirectUri = "http://example.com/oauth2/callback"
+	redirectURI         = "https://example.com/oauth2/callback"
+	wrongRedirectURI    = "https://example.com/wrong/redirect/uri"
+	invalidRedirectURI  = "://invalid-uri"
+	insecureRedirectURI = "http://example.com/oauth2/callback"
 	userID              = "d904f8dbd4684a6591a24c8e67ea4a77"
 	adminUserID         = "7dd7157576e5426ebf44e387d80f0538"
 	email               = "john@example.com"
@@ -286,13 +286,13 @@ func Test_OnBoardClientApplication(t *testing.T) {
 		When(goauth2.OnBoardClientApplication{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       userID,
 		}).
 		Then(goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       userID,
 		}))
 
@@ -301,7 +301,7 @@ func Test_OnBoardClientApplication(t *testing.T) {
 		When(goauth2.OnBoardClientApplication{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       userID,
 		}).
 		Then(goauth2.OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
@@ -318,7 +318,7 @@ func Test_OnBoardClientApplication(t *testing.T) {
 		When(goauth2.OnBoardClientApplication{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       userID,
 		}).
 		Then(goauth2.OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
@@ -341,12 +341,12 @@ func Test_OnBoardClientApplication(t *testing.T) {
 		When(goauth2.OnBoardClientApplication{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  invalidRedirectUri,
+			RedirectURI:  invalidRedirectURI,
 			UserID:       userID,
 		}).
-		Then(goauth2.OnBoardClientApplicationWasRejectedDueToInvalidRedirectUri{
+		Then(goauth2.OnBoardClientApplicationWasRejectedDueToInvalidRedirectURI{
 			ClientID:    clientID,
-			RedirectUri: invalidRedirectUri,
+			RedirectURI: invalidRedirectURI,
 		}))
 
 	t.Run("rejected due to insecure redirect URI", goauth2TestCase().
@@ -364,12 +364,12 @@ func Test_OnBoardClientApplication(t *testing.T) {
 		When(goauth2.OnBoardClientApplication{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  insecureRedirectUri,
+			RedirectURI:  insecureRedirectURI,
 			UserID:       userID,
 		}).
-		Then(goauth2.OnBoardClientApplicationWasRejectedDueToInsecureRedirectUri{
+		Then(goauth2.OnBoardClientApplicationWasRejectedDueToInsecureRedirectURI{
 			ClientID:    clientID,
-			RedirectUri: insecureRedirectUri,
+			RedirectURI: insecureRedirectURI,
 		}))
 }
 
@@ -384,13 +384,13 @@ func Test_RequestAccessTokenViaImplicitGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			}).
 		When(goauth2.RequestAccessTokenViaImplicitGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: redirectUri,
+			RedirectURI: redirectURI,
 			Username:    email,
 			Password:    password,
 		}).
@@ -408,7 +408,7 @@ func Test_RequestAccessTokenViaImplicitGrant(t *testing.T) {
 		When(goauth2.RequestAccessTokenViaImplicitGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: redirectUri,
+			RedirectURI: redirectURI,
 			Username:    email,
 			Password:    password,
 		}).
@@ -427,20 +427,20 @@ func Test_RequestAccessTokenViaImplicitGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			}).
 		When(goauth2.RequestAccessTokenViaImplicitGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: wrongRedirectUri,
+			RedirectURI: wrongRedirectURI,
 			Username:    email,
 			Password:    password,
 		}).
-		Then(goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+		Then(goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: wrongRedirectUri,
+			RedirectURI: wrongRedirectURI,
 		}))
 
 	t.Run("rejected due to missing user", goauth2TestCase().
@@ -448,13 +448,13 @@ func Test_RequestAccessTokenViaImplicitGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			}).
 		When(goauth2.RequestAccessTokenViaImplicitGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: redirectUri,
+			RedirectURI: redirectURI,
 			Username:    email,
 			Password:    password,
 		}).
@@ -473,13 +473,13 @@ func Test_RequestAccessTokenViaImplicitGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			}).
 		When(goauth2.RequestAccessTokenViaImplicitGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: redirectUri,
+			RedirectURI: redirectURI,
 			Username:    email,
 			Password:    "wrong-password",
 		}).
@@ -502,7 +502,7 @@ func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 		).
@@ -551,7 +551,7 @@ func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 		Given(goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       adminUserID,
 		}).
 		When(goauth2.RequestAccessTokenViaROPCGrant{
@@ -570,7 +570,7 @@ func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 		Given(goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       adminUserID,
 		}).
 		When(goauth2.RequestAccessTokenViaROPCGrant{
@@ -595,7 +595,7 @@ func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 		).
@@ -617,7 +617,7 @@ func Test_RequestAccessTokenViaClientCredentialsGrant(t *testing.T) {
 		Given(goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       adminUserID,
 		}).
 		When(goauth2.RequestAccessTokenViaClientCredentialsGrant{
@@ -642,7 +642,7 @@ func Test_RequestAccessTokenViaClientCredentialsGrant(t *testing.T) {
 		Given(goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       adminUserID,
 		}).
 		When(goauth2.RequestAccessTokenViaClientCredentialsGrant{
@@ -662,7 +662,7 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -711,7 +711,7 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -768,7 +768,7 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 		Given(goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       adminUserID,
 		}).
 		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
@@ -786,7 +786,7 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -810,7 +810,7 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -843,7 +843,7 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -877,7 +877,7 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -913,7 +913,7 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_ClientApplication(t *testin
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.RefreshTokenWasIssuedToClientApplication{
@@ -953,31 +953,44 @@ func Test_RequestAuthorizationCodeViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 		).
 		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: redirectUri,
+			RedirectURI: redirectURI,
 			Username:    email,
 			Password:    password,
+			Scope:       scope,
 		}).
-		Then(goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{
-			UserID:            userID,
-			AuthorizationCode: authorizationCode,
-			ExpiresAt:         issueTimePlus10Minutes.Unix(),
-		}))
+		Then(
+			goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{
+				UserID:            userID,
+				ClientID:          clientID,
+				AuthorizationCode: authorizationCode,
+				ExpiresAt:         issueTimePlus10Minutes.Unix(),
+				Scope:             scope,
+			},
+			goauth2.AuthorizationCodeWasIssuedToUser{
+				AuthorizationCode: authorizationCode,
+				UserID:            userID,
+				ClientID:          clientID,
+				ExpiresAt:         issueTimePlus10Minutes.Unix(),
+				Scope:             scope,
+			},
+		))
 
 	t.Run("rejected due to missing client application id", goauth2TestCase().
 		Given().
 		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: redirectUri,
+			RedirectURI: redirectURI,
 			Username:    email,
 			Password:    password,
+			Scope:       scope,
 		}).
 		Then(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
 			UserID:   userID,
@@ -988,35 +1001,37 @@ func Test_RequestAuthorizationCodeViaAuthorizationCodeGrant(t *testing.T) {
 		Given(goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       adminUserID,
 		}).
 		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: wrongRedirectUri,
+			RedirectURI: wrongRedirectURI,
 			Username:    email,
 			Password:    password,
+			Scope:       scope,
 		}).
-		Then(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+		Then(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: wrongRedirectUri,
+			RedirectURI: wrongRedirectURI,
 		}))
 
 	t.Run("rejected due to missing user", goauth2TestCase().
 		Given(goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
-			RedirectUri:  redirectUri,
+			RedirectURI:  redirectURI,
 			UserID:       adminUserID,
 		}).
 		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: redirectUri,
+			RedirectURI: redirectURI,
 			Username:    email,
 			Password:    password,
+			Scope:       scope,
 		}).
 		Then(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUser{
 			UserID:   userID,
@@ -1033,16 +1048,17 @@ func Test_RequestAuthorizationCodeViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 		).
 		When(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
 			UserID:      userID,
 			ClientID:    clientID,
-			RedirectUri: redirectUri,
+			RedirectURI: redirectURI,
 			Username:    email,
 			Password:    "wrong-password",
+			Scope:       scope,
 		}).
 		Then(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUserPassword{
 			UserID:   userID,
@@ -1059,7 +1075,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -1070,14 +1086,16 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.AuthorizationCodeWasIssuedToUser{
 				AuthorizationCode: authorizationCode,
 				UserID:            userID,
+				ClientID:          clientID,
 				ExpiresAt:         issueTimePlus10Minutes.Unix(),
+				Scope:             scope,
 			},
 		).
 		When(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			ClientSecret:      clientSecret,
-			RedirectUri:       redirectUri,
+			RedirectURI:       redirectURI,
 		}).
 		Then(
 			goauth2.AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{
@@ -1105,7 +1123,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			ClientSecret:      clientSecret,
-			RedirectUri:       redirectUri,
+			RedirectURI:       redirectURI,
 		}).
 		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
 			AuthorizationCode: authorizationCode,
@@ -1117,7 +1135,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -1130,7 +1148,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			ClientSecret:      "wrong-secret",
-			RedirectUri:       redirectUri,
+			RedirectURI:       redirectURI,
 		}).
 		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationSecret{
 			AuthorizationCode: authorizationCode,
@@ -1142,7 +1160,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -1155,12 +1173,12 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			ClientSecret:      clientSecret,
-			RedirectUri:       wrongRedirectUri,
+			RedirectURI:       wrongRedirectURI,
 		}).
-		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri{
+		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
-			RedirectUri:       wrongRedirectUri,
+			RedirectURI:       wrongRedirectURI,
 		}))
 
 	t.Run("rejected due to invalid authorization code", goauth2TestCase().
@@ -1168,7 +1186,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -1181,7 +1199,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			ClientSecret:      clientSecret,
-			RedirectUri:       redirectUri,
+			RedirectURI:       redirectURI,
 		}).
 		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidAuthorizationCode{
 			AuthorizationCode: authorizationCode,
@@ -1196,7 +1214,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -1207,14 +1225,16 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.AuthorizationCodeWasIssuedToUser{
 				AuthorizationCode: authorizationCode,
 				UserID:            userID,
+				ClientID:          clientID,
 				ExpiresAt:         issueTimePlus10Minutes.Unix(),
+				Scope:             scope,
 			},
 		).
 		When(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			ClientSecret:      clientSecret,
-			RedirectUri:       redirectUri,
+			RedirectURI:       redirectURI,
 		}).
 		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToExpiredAuthorizationCode{
 			AuthorizationCode: authorizationCode,
@@ -1229,7 +1249,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -1240,7 +1260,9 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.AuthorizationCodeWasIssuedToUser{
 				AuthorizationCode: authorizationCode,
 				UserID:            userID,
+				ClientID:          clientID,
 				ExpiresAt:         issueTimePlus10Minutes.Unix(),
+				Scope:             scope,
 			},
 			goauth2.AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{
 				AuthorizationCode: authorizationCode,
@@ -1252,7 +1274,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			ClientSecret:      clientSecret,
-			RedirectUri:       redirectUri,
+			RedirectURI:       redirectURI,
 		}).
 		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
 			AuthorizationCode: authorizationCode,
@@ -1267,7 +1289,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
-				RedirectUri:  redirectUri,
+				RedirectURI:  redirectURI,
 				UserID:       adminUserID,
 			},
 			goauth2.UserWasOnBoarded{
@@ -1278,7 +1300,9 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			goauth2.AuthorizationCodeWasIssuedToUser{
 				AuthorizationCode: authorizationCode,
 				UserID:            userID,
+				ClientID:          clientID,
 				ExpiresAt:         issueTimePlus10Minutes.Unix(),
+				Scope:             scope,
 			},
 			goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 				AuthorizationCode: authorizationCode,
@@ -1290,7 +1314,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			ClientSecret:      clientSecret,
-			RedirectUri:       redirectUri,
+			RedirectURI:       redirectURI,
 		}).
 		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
 			AuthorizationCode: authorizationCode,
@@ -1308,8 +1332,8 @@ func TestEventsAreBoundProperly(t *testing.T) {
 		// When
 		app.Dispatch(goauth2.OnBoardUser{
 			UserID:   userID,
-			Username: "john@example.com",
-			Password: "p45w0rd",
+			Username: email,
+			Password: password,
 		})
 
 		// Then
@@ -1327,8 +1351,8 @@ func TestEventsAreBoundProperly(t *testing.T) {
 		// When
 		app.Dispatch(goauth2.OnBoardUser{
 			UserID:   userID,
-			Username: "john@example.com",
-			Password: "p45w0rd",
+			Username: email,
+			Password: password,
 		})
 
 		// Then

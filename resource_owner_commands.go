@@ -18,7 +18,7 @@ type AuthorizeUserToOnBoardClientApplications struct {
 type RequestAccessTokenViaImplicitGrant struct {
 	UserID      string `json:"userID"`
 	ClientID    string `json:"clientID"`
-	RedirectUri string `json:"redirectUri"`
+	RedirectURI string `json:"redirectURI"`
 	Username    string `json:"username"`
 	Password    string `json:"password"`
 }
@@ -33,7 +33,8 @@ type RequestAccessTokenViaROPCGrant struct {
 type RequestAuthorizationCodeViaAuthorizationCodeGrant struct {
 	UserID      string `json:"userID"`
 	ClientID    string `json:"clientID"`
-	RedirectUri string `json:"redirectUri"`
+	RedirectURI string `json:"redirectURI"`
 	Username    string `json:"username"`
 	Password    string `json:"password"`
+	Scope       string `json:"scope"`
 }

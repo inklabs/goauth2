@@ -60,10 +60,10 @@ type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationI
 	UserID   string `json:"userID"`
 	ClientID string `json:"clientID"`
 }
-type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectUri struct {
+type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectURI struct {
 	UserID      string `json:"userID"`
 	ClientID    string `json:"clientID"`
-	RedirectUri string `json:"redirectUri"`
+	RedirectURI string `json:"redirectURI"`
 }
 type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUser struct {
 	UserID   string `json:"userID"`
@@ -101,17 +101,19 @@ type RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCrede
 // RequestAuthorizationCodeViaAuthorizationCodeGrant Events
 type AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant struct {
 	UserID            string `json:"userID"`
+	ClientID          string `json:"clientID"`
 	AuthorizationCode string `json:"authorizationCode"`
 	ExpiresAt         int64  `json:"expiresAt"`
+	Scope             string `json:"scope"`
 }
 type RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID struct {
 	UserID   string `json:"userID"`
 	ClientID string `json:"clientID"`
 }
-type RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectUri struct {
+type RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI struct {
 	UserID      string `json:"userID"`
 	ClientID    string `json:"clientID"`
-	RedirectUri string `json:"redirectUri"`
+	RedirectURI string `json:"redirectURI"`
 }
 type RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUser struct {
 	UserID   string `json:"userID"`

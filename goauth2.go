@@ -5,6 +5,7 @@ import (
 
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/clock"
+	"github.com/inklabs/rangedb/pkg/clock/provider/systemclock"
 	"github.com/inklabs/rangedb/provider/inmemorystore"
 
 	"github.com/inklabs/goauth2/provider/uuidtoken"
@@ -55,6 +56,7 @@ func New(options ...Option) *App {
 	app := &App{
 		store:          inmemorystore.New(),
 		tokenGenerator: uuidtoken.NewGenerator(),
+		clock:          systemclock.New(),
 	}
 
 	for _, option := range options {
@@ -70,6 +72,7 @@ func New(options ...Option) *App {
 
 	app.store.Subscribe(
 		newRefreshTokenProcessManager(app.Dispatch),
+		newAuthorizationCodeProcessManager(app.Dispatch),
 	)
 
 	return app
@@ -120,6 +123,9 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 
 	case IssueRefreshTokenToUser:
 		events = a.handleWithRefreshTokenAggregate(command)
+
+	case IssueAuthorizationCodeToUser:
+		events = a.handleWithAuthorizationCodeAggregate(command)
 
 	}
 
