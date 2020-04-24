@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/inklabs/rangedb"
@@ -13,6 +14,11 @@ import (
 	"github.com/inklabs/goauth2"
 	"github.com/inklabs/goauth2/projection"
 	"github.com/inklabs/goauth2/web/pkg/templatemanager"
+)
+
+const (
+	accessTokenTODO = "f5bb89d486ee458085e476871b177ff4"
+	expiresAtTODO   = 1574371565
 )
 
 //go:generate go run github.com/shurcooL/vfsgen/cmd/vfsgendev -source="github.com/inklabs/goauth2/web".TemplateAssets
@@ -72,66 +78,8 @@ func (a *app) initProjections() {
 	a.goauth2App.SubscribeAndReplay(a.projections.emailToUserID)
 }
 
-func (a *app) authorize(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseForm()
-	if err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
-		return
-	}
-
-	username := r.Form.Get("username")
-	password := r.Form.Get("password")
-	clientID := r.Form.Get("client_id")
-	redirectURI := r.Form.Get("redirect_uri")
-	responseType := r.Form.Get("response_type")
-	state := r.Form.Get("state")
-	scope := r.Form.Get("scope")
-
-	newParams := url.Values{}
-
-	switch responseType {
-	case "code":
-		userID, err := a.projections.emailToUserID.GetUserID(username)
-		if err != nil {
-			errorRedirect(w, r, redirectURI, "access_denied", state)
-			return
-		}
-
-		events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
-			UserID:      userID,
-			ClientID:    clientID,
-			RedirectURI: redirectURI,
-			Username:    username,
-			Password:    password,
-			Scope:       scope,
-		}))
-		authorizationEvent, err := events.Get(&goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{})
-		if err != nil {
-			errorRedirect(w, r, redirectURI, "access_denied", state)
-			return
-		}
-
-		issuedEvent := authorizationEvent.(goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant)
-		newParams.Set("code", issuedEvent.AuthorizationCode)
-	}
-
-	if state != "" {
-		newParams.Set("state", state)
-	}
-
-	uri := fmt.Sprintf("%s?%s", redirectURI, newParams.Encode())
-	http.Redirect(w, r, uri, http.StatusFound)
-}
-
-func errorRedirect(w http.ResponseWriter, r *http.Request, redirectURI, errorMessage, state string) {
-	query := url.Values{}
-	query.Set("error", errorMessage)
-
-	if state != "" {
-		query.Set("state", state)
-	}
-	uri := fmt.Sprintf("%s?%s", redirectURI, query.Encode())
-	http.Redirect(w, r, uri, http.StatusFound)
+func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.router.ServeHTTP(w, r)
 }
 
 func (a *app) login(w http.ResponseWriter, r *http.Request) {
@@ -162,8 +110,112 @@ func (a *app) login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	a.router.ServeHTTP(w, r)
+func (a *app) authorize(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	redirectURI := r.Form.Get("redirect_uri")
+	responseType := r.Form.Get("response_type")
+	state := r.Form.Get("state")
+
+	switch responseType {
+	case "code":
+		a.handleAuthorizationCodeGrant(w, r)
+
+	case "token":
+		a.handleImplicitGrant(w, r)
+
+	default:
+		errorRedirect(w, r, redirectURI, "unsupported_response_type", state)
+
+	}
+}
+
+func (a *app) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request) {
+	username := r.Form.Get("username")
+	password := r.Form.Get("password")
+	clientID := r.Form.Get("client_id")
+	redirectURI := r.Form.Get("redirect_uri")
+	state := r.Form.Get("state")
+	scope := r.Form.Get("scope")
+
+	userID, err := a.projections.emailToUserID.GetUserID(username)
+	if err != nil {
+		errorRedirect(w, r, redirectURI, "access_denied", state)
+		return
+	}
+
+	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
+		UserID:      userID,
+		ClientID:    clientID,
+		RedirectURI: redirectURI,
+		Username:    username,
+		Password:    password,
+		Scope:       scope,
+	}))
+	authorizationEvent, err := events.Get(&goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{})
+	if err != nil {
+		errorRedirect(w, r, redirectURI, "access_denied", state)
+		return
+	}
+
+	newParams := url.Values{}
+	if state != "" {
+		newParams.Set("state", state)
+	}
+
+	issuedEvent := authorizationEvent.(goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant)
+	newParams.Set("code", issuedEvent.AuthorizationCode)
+
+	uri := fmt.Sprintf("%s?%s", redirectURI, newParams.Encode())
+	http.Redirect(w, r, uri, http.StatusFound)
+}
+
+func (a *app) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
+	username := r.Form.Get("username")
+	password := r.Form.Get("password")
+	clientID := r.Form.Get("client_id")
+	redirectURI := r.Form.Get("redirect_uri")
+	state := r.Form.Get("state")
+	scope := r.Form.Get("scope")
+
+	userID, err := a.projections.emailToUserID.GetUserID(username)
+	if err != nil {
+		errorRedirect(w, r, redirectURI, "access_denied", state)
+		return
+	}
+
+	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaImplicitGrant{
+		UserID:      userID,
+		ClientID:    clientID,
+		RedirectURI: redirectURI,
+		Username:    username,
+		Password:    password,
+	}))
+	accessTokenEvent, err := events.Get(&goauth2.AccessTokenWasIssuedToUserViaImplicitGrant{})
+	if err != nil {
+		errorRedirect(w, r, redirectURI, "access_denied", state)
+		return
+	}
+
+	issuedEvent := accessTokenEvent.(goauth2.AccessTokenWasIssuedToUserViaImplicitGrant)
+
+	newParams := url.Values{}
+	if state != "" {
+		newParams.Set("state", state)
+	}
+
+	newParams.Set("access_token", accessTokenTODO)
+	newParams.Set("expires_at", strconv.Itoa(expiresAtTODO))
+	newParams.Set("scope", scope)
+	newParams.Set("token_type", "Bearer")
+	_ = issuedEvent
+
+	uri := fmt.Sprintf("%s#%s", redirectURI, newParams.Encode())
+	http.Redirect(w, r, uri, http.StatusFound)
 }
 
 type AccessTokenResponse struct {
@@ -202,7 +254,6 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 
 	default:
 		writeUnsupportedGrantTypeResponse(w)
-		return
 	}
 }
 
@@ -225,7 +276,7 @@ func (a *app) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, cl
 
 	writeJsonResponse(w, AccessTokenResponse{
 		AccessToken:  "61272356284f4340b2b1f3f1400ad4d9",
-		ExpiresAt:    1574371565,
+		ExpiresAt:    expiresAtTODO,
 		TokenType:    "Bearer",
 		RefreshToken: issuedRefreshTokenEvent.NextRefreshToken,
 		Scope:        issuedRefreshTokenEvent.Scope,
@@ -268,8 +319,8 @@ func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID s
 	}
 
 	writeJsonResponse(w, AccessTokenResponse{
-		AccessToken:  "f5bb89d486ee458085e476871b177ff4",
-		ExpiresAt:    1574371565,
+		AccessToken:  accessTokenTODO,
+		ExpiresAt:    expiresAtTODO,
 		TokenType:    "Bearer",
 		RefreshToken: refreshToken,
 		Scope:        scope,
@@ -288,8 +339,8 @@ func (a *app) handleClientCredentialsGrant(w http.ResponseWriter, clientID strin
 	}
 
 	writeJsonResponse(w, AccessTokenResponse{
-		AccessToken: "f5bb89d486ee458085e476871b177ff4",
-		ExpiresAt:   1574371565,
+		AccessToken: accessTokenTODO,
+		ExpiresAt:   expiresAtTODO,
 		TokenType:   "Bearer",
 		Scope:       scope,
 	})
@@ -325,6 +376,17 @@ func writeJsonResponse(w http.ResponseWriter, jsonBody interface{}) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	_, _ = w.Write(bytes)
+}
+
+func errorRedirect(w http.ResponseWriter, r *http.Request, redirectURI, errorMessage, state string) {
+	query := url.Values{}
+	query.Set("error", errorMessage)
+
+	if state != "" {
+		query.Set("state", state)
+	}
+	uri := fmt.Sprintf("%s?%s", redirectURI, query.Encode())
+	http.Redirect(w, r, uri, http.StatusFound)
 }
 
 //SavedEvents contains events that have been persisted to the event store.

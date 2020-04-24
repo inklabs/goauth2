@@ -118,4 +118,9 @@ func initDB(goauth2App *goauth2.App, store rangedb.Store) {
 	fmt.Println(`http://0.0.0.0:8080/login?client_id=8895e1e5f06644ebb41c26ea5740b246&redirect_uri=https://example.com/oauth2/callback&response_type=code&state=somestate&scope=read_write`)
 	fmt.Println("user: john@example.com")
 	fmt.Println("pass: Pass123")
+
+	fmt.Println("\n# Implicit")
+	fmt.Println(`http://0.0.0.0:8080/login?client_id=8895e1e5f06644ebb41c26ea5740b246&redirect_uri=https://example.com/oauth2/callback&response_type=token&state=somestate&scope=read_write`)
+	fmt.Println("user: john@example.com")
+	fmt.Println("pass: Pass123")
 }

@@ -197,3 +197,55 @@ curl localhost:8080/token \
   "refresh_token": "48403032170e46e8af72b7cca1612b43"
 }
 ```
+
+## Implicit
+
+* http://tools.ietf.org/html/rfc6749#section-4.2
+
+```
++----------+
+| Resource |
+|  Owner   |
+|          |
++----------+
+     ^
+     |
+    (B)
++----|-----+          Client Identifier     +---------------+
+|         -+----(A)-- & Redirection URI --->|               |
+|  User-   |                                | Authorization |
+|  Agent  -|----(B)-- User authenticates -->|     Server    |
+|          |                                |               |
+|          |<---(C)--- Redirection URI ----<|               |
+|          |          with Access Token     +---------------+
+|          |            in Fragment
+|          |                                +---------------+
+|          |----(D)--- Redirection URI ---->|   Web-Hosted  |
+|          |          without Fragment      |     Client    |
+|          |                                |    Resource   |
+|     (F)  |<---(E)------- Script ---------<|               |
+|          |                                +---------------+
++-|--------+
+  |    |
+ (A)  (G) Access Token
+  |    |
+  ^    v
++---------+
+|         |
+|  Client |
+|         |
++---------+
+```
+
+```
+open http://localhost:8080/authorize?client_id=client_id_hash&redirect_uri=https%3A%2F%2Fexample.com%2Foauth2%2Fcallback&response_type=token&state=somestate&scope=read_write
+```
+
+1. Login via the web form (john@example.com | Pass123!)
+1. Click button to grant access
+1. The authorization server redirects back to the redirection URI including an access token and any
+   state provided by the client in the URI fragment
+
+```
+https://example.com/oauth2/callback#access_token=1e21103279e549779a9b5c07d50e641d&expires_at=1574371565&scope=read_write&state=somestate&token_type=Bearer
+```

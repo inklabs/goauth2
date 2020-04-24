@@ -42,6 +42,7 @@ const (
 	clientCredentialsGrant = "client_credentials"
 	ROPCGrant              = "password"
 	RefreshTokenGrant      = "refresh_token"
+	ImplicitGrant          = "token"
 )
 
 var TemplateAssets = http.Dir("./templates")
@@ -462,40 +463,181 @@ func Test_TokenEndpoint(t *testing.T) {
 
 func Test_AuthorizeEndpoint(t *testing.T) {
 	const authorizeURI = "/authorize"
-	t.Run("grants authorization code and redirects", func(t *testing.T) {
-		// Given
-		eventStore := getStoreWithEvents(t,
-			goauth2.ClientApplicationWasOnBoarded{
-				ClientID:     clientID,
-				ClientSecret: clientSecret,
-				RedirectURI:  redirectURI,
-				UserID:       adminUserID,
-			},
-			goauth2.UserWasOnBoarded{
-				UserID:       userID,
-				Username:     email,
-				PasswordHash: passwordHash,
-			},
-		)
-		app := web.New(web.WithGoauth2App(goauth2.New(
-			goauth2.WithStore(eventStore),
-			goauth2.WithClock(sequentialclock.New()),
-			goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
-		)))
-		params := getAuthorizeParams()
+	t.Run("authorization code grant", func(t *testing.T) {
+		t.Run("grants authorization code and redirects", func(t *testing.T) {
+			// Given
+			eventStore := getStoreWithEvents(t,
+				goauth2.ClientApplicationWasOnBoarded{
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+					RedirectURI:  redirectURI,
+					UserID:       adminUserID,
+				},
+				goauth2.UserWasOnBoarded{
+					UserID:       userID,
+					Username:     email,
+					PasswordHash: passwordHash,
+				},
+			)
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(eventStore),
+				goauth2.WithClock(sequentialclock.New()),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
+			)))
+			params := getAuthorizeParams()
 
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
-		// When
-		app.ServeHTTP(w, r)
+			// When
+			app.ServeHTTP(w, r)
 
-		// Then
-		require.Equal(t, http.StatusFound, w.Result().StatusCode)
-		assert.Equal(t, "", w.Body.String())
-		expectedLocation := "https://example.com/oauth2/callback?code=2441fd0e215f4568b67c872d39f95a3f&state=some-state"
-		assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+			// Then
+			require.Equal(t, http.StatusFound, w.Result().StatusCode)
+			assert.Equal(t, "", w.Body.String())
+			expectedLocation := "https://example.com/oauth2/callback?code=2441fd0e215f4568b67c872d39f95a3f&state=some-state"
+			assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+		})
+
+		t.Run("fails with missing user", func(t *testing.T) {
+			// Given
+			app := web.New()
+			params := getAuthorizeParams()
+			params.Set("username", "wrong-email@example.com")
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusFound, w.Result().StatusCode)
+			expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
+			assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+		})
+
+		t.Run("fails with invalid user password", func(t *testing.T) {
+			// Given
+			eventStore := getStoreWithEvents(t,
+				goauth2.ClientApplicationWasOnBoarded{
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+					RedirectURI:  redirectURI,
+					UserID:       adminUserID,
+				},
+				goauth2.UserWasOnBoarded{
+					UserID:       userID,
+					Username:     email,
+					PasswordHash: passwordHash,
+				},
+			)
+			app := web.New(web.WithGoauth2App(goauth2.New(goauth2.WithStore(eventStore))))
+			params := getAuthorizeParams()
+			params.Set("password", "wrong-pass")
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusFound, w.Result().StatusCode)
+			expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
+			assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+		})
+	})
+
+	t.Run("implicit grant", func(t *testing.T) {
+		t.Run("grants access token via implicit grant and redirects with URI fragment", func(t *testing.T) {
+			// Given
+			eventStore := getStoreWithEvents(t,
+				goauth2.ClientApplicationWasOnBoarded{
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+					RedirectURI:  redirectURI,
+					UserID:       adminUserID,
+				},
+				goauth2.UserWasOnBoarded{
+					UserID:       userID,
+					Username:     email,
+					PasswordHash: passwordHash,
+				},
+			)
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(eventStore),
+				goauth2.WithClock(sequentialclock.New()),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
+			)))
+			params := getAuthorizeParams()
+			params.Set("response_type", ImplicitGrant)
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusFound, w.Result().StatusCode)
+			assert.Equal(t, "", w.Body.String())
+			expectedLocation := "https://example.com/oauth2/callback#access_token=f5bb89d486ee458085e476871b177ff4&expires_at=1574371565&scope=read_write&state=some-state&token_type=Bearer"
+			assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+		})
+
+		t.Run("fails with missing user", func(t *testing.T) {
+			// Given
+			app := web.New()
+			params := getAuthorizeParams()
+			params.Set("response_type", ImplicitGrant)
+			params.Set("username", "wrong-email@example.com")
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusFound, w.Result().StatusCode)
+			expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
+			assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+		})
+
+		t.Run("fails with invalid user password", func(t *testing.T) {
+			// Given
+			eventStore := getStoreWithEvents(t,
+				goauth2.ClientApplicationWasOnBoarded{
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+					RedirectURI:  redirectURI,
+					UserID:       adminUserID,
+				},
+				goauth2.UserWasOnBoarded{
+					UserID:       userID,
+					Username:     email,
+					PasswordHash: passwordHash,
+				},
+			)
+			app := web.New(web.WithGoauth2App(goauth2.New(goauth2.WithStore(eventStore))))
+			params := getAuthorizeParams()
+			params.Set("response_type", ImplicitGrant)
+			params.Set("password", "wrong-pass")
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusFound, w.Result().StatusCode)
+			expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
+			assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+		})
 	})
 
 	t.Run("fails with invalid HTTP form request", func(t *testing.T) {
@@ -513,11 +655,12 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "invalid request")
 	})
 
-	t.Run("fails with missing user", func(t *testing.T) {
+	t.Run("fails with unsupported response type", func(t *testing.T) {
 		// Given
 		app := web.New()
 		params := getAuthorizeParams()
-		params.Set("username", "wrong-email@example.com")
+		params.Set("response_type", "invalid-response-type")
+
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
@@ -527,38 +670,8 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 
 		// Then
 		require.Equal(t, http.StatusFound, w.Result().StatusCode)
-		expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
-		assert.Equal(t, expectedLocation, w.Header().Get("Location"))
-	})
-
-	t.Run("fails with invalid user password", func(t *testing.T) {
-		// Given
-		eventStore := getStoreWithEvents(t,
-			goauth2.ClientApplicationWasOnBoarded{
-				ClientID:     clientID,
-				ClientSecret: clientSecret,
-				RedirectURI:  redirectURI,
-				UserID:       adminUserID,
-			},
-			goauth2.UserWasOnBoarded{
-				UserID:       userID,
-				Username:     email,
-				PasswordHash: passwordHash,
-			},
-		)
-		app := web.New(web.WithGoauth2App(goauth2.New(goauth2.WithStore(eventStore))))
-		params := getAuthorizeParams()
-		params.Set("password", "wrong-pass")
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-
-		// When
-		app.ServeHTTP(w, r)
-
-		// Then
-		require.Equal(t, http.StatusFound, w.Result().StatusCode)
-		expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
+		assert.Equal(t, "", w.Body.String())
+		expectedLocation := "https://example.com/oauth2/callback?error=unsupported_response_type&state=some-state"
 		assert.Equal(t, expectedLocation, w.Header().Get("Location"))
 	})
 }
