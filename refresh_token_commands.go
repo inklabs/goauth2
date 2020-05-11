@@ -14,3 +14,8 @@ type IssueRefreshTokenToUser struct {
 	ClientID     string `json:"clientID"`
 	Scope        string `json:"scope"`
 }
+type RevokeRefreshTokenFromUser struct {
+	RefreshToken string `json:"refreshToken"`
+	UserID       string `json:"userID"`
+	ClientID     string `json:"clientID"`
+}

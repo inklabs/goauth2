@@ -12,13 +12,13 @@ import (
 	"github.com/inklabs/goauth2/projection"
 )
 
-const (
-	userID  = "881d60f1905d4457a611d596ae55d964"
-	userID2 = "e0d0f5d7a72b432e8d553a0ac5c3d9b1"
-	email   = "john@example.com"
-)
-
 func TestEmailToUserID_Accept(t *testing.T) {
+	// Given
+	const (
+		userID  = "881d60f1905d4457a611d596ae55d964"
+		userID2 = "e0d0f5d7a72b432e8d553a0ac5c3d9b1"
+		email   = "john@example.com"
+	)
 	serializer := jsonrecordserializer.New()
 	goauth2.BindEvents(serializer)
 

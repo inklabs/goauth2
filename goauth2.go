@@ -70,8 +70,11 @@ func New(options ...Option) *App {
 		newClientApplicationCommandAuthorization(app.store),
 	}
 
+	authorizationCodeRefreshTokens := NewAuthorizationCodeRefreshTokens()
+	app.SubscribeAndReplay(authorizationCodeRefreshTokens)
+
 	app.store.Subscribe(
-		newRefreshTokenProcessManager(app.Dispatch),
+		newRefreshTokenProcessManager(app.Dispatch, authorizationCodeRefreshTokens),
 		newAuthorizationCodeProcessManager(app.Dispatch),
 	)
 
@@ -126,6 +129,9 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 
 	case IssueAuthorizationCodeToUser:
 		events = a.handleWithAuthorizationCodeAggregate(command)
+
+	case RevokeRefreshTokenFromUser:
+		events = a.handleWithRefreshTokenAggregate(command)
 
 	}
 

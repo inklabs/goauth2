@@ -13,9 +13,9 @@ func goauth2TestCase(options ...goauth2.Option) *bdd.TestCase {
 	goauth2.BindEvents(serializer)
 	eventStore := inmemorystore.New(inmemorystore.WithSerializer(serializer))
 
-	options = append([]goauth2.Option{goauth2.WithStore(eventStore)}, options...)
-	app := goauth2.New(options...)
 	return bdd.New(eventStore, func(command bdd.Command) {
+		options = append([]goauth2.Option{goauth2.WithStore(eventStore)}, options...)
+		app := goauth2.New(options...)
 		app.Dispatch(command)
 	})
 }

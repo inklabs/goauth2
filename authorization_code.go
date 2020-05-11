@@ -11,6 +11,8 @@ type authorizationCode struct {
 	IsLoaded              bool
 	ExpiresAt             int64
 	UserID                string
+	ClientID              string
+	Scope                 string
 	HasBeenPreviouslyUsed bool
 	PendingEvents         []rangedb.Event
 }
@@ -37,6 +39,8 @@ func (a *authorizationCode) apply(event rangedb.Event) {
 		a.IsLoaded = true
 		a.ExpiresAt = e.ExpiresAt
 		a.UserID = e.UserID
+		a.ClientID = e.ClientID
+		a.Scope = e.Scope
 
 	case *AccessTokenWasIssuedToUserViaAuthorizationCodeGrant:
 		a.HasBeenPreviouslyUsed = true
@@ -59,10 +63,20 @@ func (a *authorizationCode) Handle(command Command) {
 			return
 		}
 
+		if a.ClientID != c.ClientID {
+			a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToUnmatchedClientApplicationID{
+				AuthorizationCode: c.AuthorizationCode,
+				RequestedClientID: c.ClientID,
+				ActualClientID:    a.ClientID,
+			})
+			return
+		}
+
 		if a.HasBeenPreviouslyUsed {
 			a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
 				AuthorizationCode: c.AuthorizationCode,
 				ClientID:          c.ClientID,
+				UserID:            a.UserID,
 			})
 			return
 		}
@@ -82,12 +96,14 @@ func (a *authorizationCode) Handle(command Command) {
 				AuthorizationCode: c.AuthorizationCode,
 				UserID:            a.UserID,
 				ClientID:          c.ClientID,
+				Scope:             a.Scope,
 			},
 			RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 				AuthorizationCode: c.AuthorizationCode,
 				UserID:            a.UserID,
 				ClientID:          c.ClientID,
 				RefreshToken:      refreshToken,
+				Scope:             a.Scope,
 			},
 		)
 

@@ -50,7 +50,7 @@ func (a *refreshToken) apply(event rangedb.Event) {
 	case *RefreshTokenWasIssuedToUserViaRefreshTokenGrant:
 		a.HasBeenPreviouslyUsed = true
 
-	case *RefreshTokenWasRevoked:
+	case *RefreshTokenWasRevokedFromUser:
 		a.HasBeenRevoked = true
 
 	}
@@ -78,6 +78,7 @@ func (a *refreshToken) Handle(command Command) {
 		if a.HasBeenRevoked {
 			a.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToRevokedRefreshToken{
 				RefreshToken: c.RefreshToken,
+				ClientID:     c.ClientID,
 			})
 			return
 		}
@@ -130,6 +131,14 @@ func (a *refreshToken) Handle(command Command) {
 			ClientID:     c.ClientID,
 			Scope:        c.Scope,
 		})
+
+	case RevokeRefreshTokenFromUser:
+		a.emit(RefreshTokenWasRevokedFromUser{
+			RefreshToken: c.RefreshToken,
+			ClientID:     c.ClientID,
+			UserID:       c.UserID,
+		})
+
 	}
 }
 

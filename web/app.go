@@ -113,7 +113,7 @@ func (a *app) login(w http.ResponseWriter, r *http.Request) {
 func (a *app) authorize(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		writeInvalidRequestResponse(w)
 		return
 	}
 
@@ -158,6 +158,14 @@ func (a *app) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Reques
 	}))
 	authorizationEvent, err := events.Get(&goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{})
 	if err != nil {
+		if events.ContainsAny(
+			&goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{},
+			&goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{},
+		) {
+			writeInvalidRequestResponse(w)
+			return
+		}
+
 		errorRedirect(w, r, redirectURI, "access_denied", state)
 		return
 	}
@@ -197,6 +205,14 @@ func (a *app) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
 	}))
 	accessTokenEvent, err := events.Get(&goauth2.AccessTokenWasIssuedToUserViaImplicitGrant{})
 	if err != nil {
+		if events.ContainsAny(
+			&goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationID{},
+			&goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectURI{},
+		) {
+			writeInvalidRequestResponse(w)
+			return
+		}
+
 		errorRedirect(w, r, redirectURI, "access_denied", state)
 		return
 	}
@@ -235,7 +251,7 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseForm()
 	if err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		writeInvalidRequestResponse(w)
 		return
 	}
 
@@ -252,12 +268,15 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 	case "refresh_token":
 		a.handleRefreshTokenGrant(w, r, clientID, clientSecret, scope)
 
+	case "authorization_code":
+		a.handleAuthorizationCodeTokenGrant(w, r, clientID, clientSecret)
+
 	default:
 		writeUnsupportedGrantTypeResponse(w)
 	}
 }
 
-func (a *app) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, clientID string, clientSecret string, scope string) {
+func (a *app) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret, scope string) {
 	refreshToken := r.Form.Get("refresh_token")
 
 	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaRefreshTokenGrant{
@@ -284,7 +303,7 @@ func (a *app) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, cl
 	return
 }
 
-func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID string, clientSecret string, scope string) {
+func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret, scope string) {
 	username := r.Form.Get("username")
 	password := r.Form.Get("password")
 	userID, err := a.projections.emailToUserID.GetUserID(username)
@@ -328,7 +347,7 @@ func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID s
 	return
 }
 
-func (a *app) handleClientCredentialsGrant(w http.ResponseWriter, clientID string, clientSecret string, scope string) {
+func (a *app) handleClientCredentialsGrant(w http.ResponseWriter, clientID, clientSecret, scope string) {
 	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -347,8 +366,55 @@ func (a *app) handleClientCredentialsGrant(w http.ResponseWriter, clientID strin
 	return
 }
 
+func (a *app) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret string) {
+	authorizationCode := r.Form.Get("code")
+	redirectURI := r.Form.Get("redirect_uri")
+
+	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{
+		AuthorizationCode: authorizationCode,
+		ClientID:          clientID,
+		ClientSecret:      clientSecret,
+		RedirectURI:       redirectURI,
+	}))
+
+	accessTokenEvent, err := events.Get(&goauth2.AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{})
+	if err != nil {
+		if events.ContainsAny(
+			&goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{},
+			&goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationSecret{},
+		) {
+			writeInvalidClientResponse(w)
+			return
+		}
+
+		writeInvalidGrantResponse(w)
+		return
+	}
+
+	scope := accessTokenEvent.(goauth2.AccessTokenWasIssuedToUserViaAuthorizationCodeGrant).Scope
+
+	var refreshToken string
+	refreshTokenEvent, err := events.Get(&goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{})
+	if err == nil {
+		refreshToken = refreshTokenEvent.(goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant).RefreshToken
+	}
+
+	writeJsonResponse(w, AccessTokenResponse{
+		AccessToken:  accessTokenTODO,
+		ExpiresAt:    expiresAtTODO,
+		TokenType:    "Bearer",
+		Scope:        scope,
+		RefreshToken: refreshToken,
+	})
+	return
+}
+
 type errorResponse struct {
 	Error string `json:"error"`
+}
+
+func writeInvalidRequestResponse(w http.ResponseWriter) {
+	http.Error(w, "invalid request", http.StatusBadRequest)
 }
 
 func writeInvalidClientResponse(w http.ResponseWriter) {
@@ -403,6 +469,18 @@ func (l *SavedEvents) Contains(events ...rangedb.Event) bool {
 		}
 	}
 	return len(events) == totalFound
+}
+
+func (l *SavedEvents) ContainsAny(events ...rangedb.Event) bool {
+	for _, event := range events {
+		for _, savedEvent := range *l {
+			if event.EventType() == savedEvent.EventType() {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (l *SavedEvents) Get(event rangedb.Event) (rangedb.Event, error) {

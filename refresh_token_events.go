@@ -13,8 +13,10 @@ type RefreshTokenWasIssuedToClientApplication struct {
 	RefreshToken string `json:"refreshToken"`
 	ClientID     string `json:"clientID"`
 }
-type RefreshTokenWasRevoked struct {
+type RefreshTokenWasRevokedFromUser struct {
 	RefreshToken string `json:"refreshToken"`
+	UserID       string `json:"userID"`
+	ClientID     string `json:"clientID"`
 }
 type AccessTokenWasIssuedToUserViaRefreshTokenGrant struct {
 	RefreshToken string `json:"refreshToken"`
@@ -56,6 +58,7 @@ type RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToPreviouslyUsedRefresh
 }
 type RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToRevokedRefreshToken struct {
 	RefreshToken string `json:"refreshToken"`
+	ClientID     string `json:"clientID"`
 }
 type AccessTokenWasRevokedDueToPreviouslyUsedRefreshToken struct {
 	RefreshToken string `json:"refreshToken"`

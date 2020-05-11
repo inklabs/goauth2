@@ -20,6 +20,8 @@ import (
 const (
 	clientID            = "7d327d51d1304341a21c1242fcb089f4"
 	clientSecret        = "c389e799ac0e4568b1c4b4c96b670605"
+	clientID2           = "a09bb83c916a449c9e396561506b9a26"
+	clientSecret2       = "54963344349742c098e0904137202bcb"
 	redirectURI         = "https://example.com/oauth2/callback"
 	wrongRedirectURI    = "https://example.com/wrong/redirect/uri"
 	invalidRedirectURI  = "://invalid-uri"
@@ -891,8 +893,10 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 				ClientID:     clientID,
 				Scope:        scope,
 			},
-			goauth2.RefreshTokenWasRevoked{
+			goauth2.RefreshTokenWasRevokedFromUser{
 				RefreshToken: refreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
 			},
 		).
 		When(goauth2.RequestAccessTokenViaRefreshTokenGrant{
@@ -902,6 +906,7 @@ func Test_RequestAccessTokenViaRefreshTokenGrant_For_User(t *testing.T) {
 		}).
 		Then(goauth2.RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToRevokedRefreshToken{
 			RefreshToken: refreshToken,
+			ClientID:     clientID,
 		}))
 }
 
@@ -1102,12 +1107,20 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 				AuthorizationCode: authorizationCode,
 				UserID:            userID,
 				ClientID:          clientID,
+				Scope:             scope,
 			},
 			goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 				AuthorizationCode: authorizationCode,
 				UserID:            userID,
 				ClientID:          clientID,
 				RefreshToken:      refreshToken,
+				Scope:             scope,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
 			},
 		))
 
@@ -1179,6 +1192,45 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			RedirectURI:       wrongRedirectURI,
+		}))
+
+	t.Run("rejected due to unmatched client application id", goauth2TestCase().
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectURI:  redirectURI,
+				UserID:       adminUserID,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID2,
+				ClientSecret: clientSecret2,
+				RedirectURI:  redirectURI,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.AuthorizationCodeWasIssuedToUser{
+				AuthorizationCode: authorizationCode,
+				UserID:            userID,
+				ClientID:          clientID2,
+				ExpiresAt:         issueTimePlus10Minutes.Unix(),
+				Scope:             scope,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{
+			AuthorizationCode: authorizationCode,
+			ClientID:          clientID,
+			ClientSecret:      clientSecret,
+			RedirectURI:       redirectURI,
+		}).
+		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToUnmatchedClientApplicationID{
+			AuthorizationCode: authorizationCode,
+			RequestedClientID: clientID,
+			ActualClientID:    clientID2,
 		}))
 
 	t.Run("rejected due to invalid authorization code", goauth2TestCase().
@@ -1268,6 +1320,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 				AuthorizationCode: authorizationCode,
 				UserID:            userID,
 				ClientID:          clientID,
+				Scope:             scope,
 			},
 		).
 		When(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{
@@ -1279,9 +1332,10 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
+			UserID:            userID,
 		}))
 
-	t.Run("rejected due to previously used authorization code from refresh token", goauth2TestCase(
+	t.Run("rejected due to previously used authorization code with one refresh token", goauth2TestCase(
 		goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 		goauth2.WithClock(seededclock.New(issueTimePlus9Minutes)),
 	).
@@ -1306,8 +1360,16 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			},
 			goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 				AuthorizationCode: authorizationCode,
-				UserID:            userID,
 				ClientID:          clientID,
+				UserID:            userID,
+				RefreshToken:      refreshToken,
+				Scope:             scope,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
 			},
 		).
 		When(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{
@@ -1316,10 +1378,92 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 			ClientSecret:      clientSecret,
 			RedirectURI:       redirectURI,
 		}).
-		Then(goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
+		Then(
+			goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
+				AuthorizationCode: authorizationCode,
+				ClientID:          clientID,
+				UserID:            userID,
+			},
+			goauth2.RefreshTokenWasRevokedFromUser{
+				RefreshToken: refreshToken,
+				ClientID:     clientID,
+				UserID:       userID,
+			},
+		))
+
+	t.Run("rejected due to previously used authorization code with two refresh tokens", goauth2TestCase(
+		goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+		goauth2.WithClock(seededclock.New(issueTimePlus9Minutes)),
+	).
+		Given(
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectURI:  redirectURI,
+				UserID:       adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     email,
+				PasswordHash: passwordHash,
+			},
+			goauth2.AuthorizationCodeWasIssuedToUser{
+				AuthorizationCode: authorizationCode,
+				UserID:            userID,
+				ClientID:          clientID,
+				ExpiresAt:         issueTimePlus10Minutes.Unix(),
+				Scope:             scope,
+			},
+			goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
+				AuthorizationCode: authorizationCode,
+				ClientID:          clientID,
+				UserID:            userID,
+				RefreshToken:      refreshToken,
+				Scope:             scope,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: refreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
+			},
+			goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
+				RefreshToken:     refreshToken,
+				UserID:           userID,
+				ClientID:         clientID,
+				NextRefreshToken: nextRefreshToken,
+				Scope:            scope,
+			},
+			goauth2.RefreshTokenWasIssuedToUser{
+				RefreshToken: nextRefreshToken,
+				UserID:       userID,
+				ClientID:     clientID,
+				Scope:        scope,
+			},
+		).
+		When(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
-		}))
+			ClientSecret:      clientSecret,
+			RedirectURI:       redirectURI,
+		}).
+		Then(
+			goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
+				AuthorizationCode: authorizationCode,
+				ClientID:          clientID,
+				UserID:            userID,
+			},
+			goauth2.RefreshTokenWasRevokedFromUser{
+				RefreshToken: refreshToken,
+				ClientID:     clientID,
+				UserID:       userID,
+			},
+			goauth2.RefreshTokenWasRevokedFromUser{
+				RefreshToken: nextRefreshToken,
+				ClientID:     clientID,
+				UserID:       userID,
+			},
+		))
 }
 
 func TestEventsAreBoundProperly(t *testing.T) {

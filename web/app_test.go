@@ -8,8 +8,10 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/pkg/clock/provider/seededclock"
 	"github.com/inklabs/rangedb/pkg/clock/provider/sequentialclock"
 	"github.com/inklabs/rangedb/provider/inmemorystore"
 	"github.com/inklabs/rangedb/provider/jsonrecordserializer"
@@ -25,6 +27,8 @@ import (
 const (
 	clientID               = "fe3c986043cd4a0ebe5e181ba2baa500"
 	clientSecret           = "f29a2881e697403395e53ca173caa217"
+	clientID2              = "da975f24538942a1872915d0982a9b50"
+	clientSecret2          = "977c8a5726e148c0aa1b48ebd435a02c"
 	userID                 = "25c807edd664438985401b2282678b13"
 	adminUserID            = "873aeb9386724213b4c1410bce9f838c"
 	email                  = "john@example.com"
@@ -43,9 +47,15 @@ const (
 	ROPCGrant              = "password"
 	RefreshTokenGrant      = "refresh_token"
 	ImplicitGrant          = "token"
+	AuthorizationCodeGrant = "authorization_code"
 )
 
-var TemplateAssets = http.Dir("./templates")
+var (
+	issueTime              = time.Date(2020, 05, 1, 8, 0, 0, 0, time.UTC)
+	issueTimePlus10Minutes = issueTime.Add(10 * time.Minute)
+	issueTimePlus11Minutes = issueTime.Add(11 * time.Minute)
+	TemplateAssets         = http.Dir("./templates")
+)
 
 func Test_Login_ServesLoginForm(t *testing.T) {
 	// Given
@@ -184,23 +194,9 @@ func Test_TokenEndpoint(t *testing.T) {
 
 	t.Run("ROPC Grant Type with client application and user on-boarded", func(t *testing.T) {
 		// Given
-		eventStore := getStoreWithEvents(t,
-			goauth2.ClientApplicationWasOnBoarded{
-				ClientID:     clientID,
-				ClientSecret: clientSecret,
-				RedirectURI:  redirectURI,
-				UserID:       adminUserID,
-			},
-			goauth2.UserWasOnBoarded{
-				UserID:       userID,
-				Username:     email,
-				PasswordHash: passwordHash,
-			},
-		)
-		tokenGenerator := goauth2test.NewSeededTokenGenerator(refreshToken)
 		goAuth2App := goauth2.New(
-			goauth2.WithStore(eventStore),
-			goauth2.WithTokenGenerator(tokenGenerator),
+			goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+			goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 		)
 		app := web.New(web.WithGoauth2App(goAuth2App))
 		params := &url.Values{}
@@ -308,52 +304,279 @@ func Test_TokenEndpoint(t *testing.T) {
 		})
 	})
 
-	t.Run("issues access and refresh token from refresh token request", func(t *testing.T) {
-		// Given
-		eventStore := getStoreWithEvents(t,
-			goauth2.ClientApplicationWasOnBoarded{
-				ClientID:     clientID,
-				ClientSecret: clientSecret,
-				RedirectURI:  redirectURI,
-				UserID:       adminUserID,
-			},
-			goauth2.UserWasOnBoarded{
-				UserID:       userID,
-				Username:     email,
-				PasswordHash: passwordHash,
-			},
-		)
-		tokenGenerator := goauth2test.NewSeededTokenGenerator(refreshToken, nextRefreshToken)
-		goAuth2App := goauth2.New(
-			goauth2.WithStore(eventStore),
-			goauth2.WithTokenGenerator(tokenGenerator),
-		)
-		app := web.New(web.WithGoauth2App(goAuth2App))
-		params := &url.Values{}
-		params.Set("grant_type", ROPCGrant)
-		params.Set("username", email)
-		params.Set("password", password)
-		params.Set("scope", scope)
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
-		r.SetBasicAuth(clientID, clientSecret)
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-		app.ServeHTTP(w, r)
-		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+	t.Run("Authorization Code Grant Type", func(t *testing.T) {
+		t.Run("issues access and refresh token", func(t *testing.T) {
+			// Given
+			app := getAppWithAuthorizationCodeIssued(t)
+			params := &url.Values{}
+			params.Set("grant_type", AuthorizationCodeGrant)
+			params.Set("code", authorizationCode)
+			params.Set("redirect_uri", redirectURI)
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+			expiresAt := 1574371565
+			expectedBody := fmt.Sprintf(`{
+				"access_token": "%s",
+				"expires_at": %d,
+				"token_type": "Bearer",
+				"scope": "%s",
+				"refresh_token": "%s"
+			}`, accessToken, expiresAt, scope, refreshToken)
 
-		var accessTokenResponse web.AccessTokenResponse
-		err := json.Unmarshal(w.Body.Bytes(), &accessTokenResponse)
-		require.NoError(t, err)
+			// When
+			app.ServeHTTP(w, r)
 
-		refreshParams := &url.Values{}
-		refreshParams.Set("grant_type", RefreshTokenGrant)
-		refreshParams.Set("refresh_token", accessTokenResponse.RefreshToken)
-		w = httptest.NewRecorder()
-		r = httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(refreshParams.Encode()))
-		r.SetBasicAuth(clientID, clientSecret)
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-		expiresAt := 1574371565
-		expectedBody := fmt.Sprintf(`{
+			// Then
+			require.Equal(t, http.StatusOK, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.JSONEq(t, expectedBody, w.Body.String())
+		})
+
+		t.Run("fails with invalid client application id", func(t *testing.T) {
+			// Given
+			app := getAppWithAuthorizationCodeIssued(t)
+			params := &url.Values{}
+			params.Set("grant_type", AuthorizationCodeGrant)
+			params.Set("code", authorizationCode)
+			params.Set("redirect_uri", redirectURI)
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth("invalid-client-id", clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_client"}`, w.Body.String())
+		})
+
+		t.Run("fails with invalid client application secret", func(t *testing.T) {
+			// Given
+			app := getAppWithAuthorizationCodeIssued(t)
+			params := &url.Values{}
+			params.Set("grant_type", AuthorizationCodeGrant)
+			params.Set("code", authorizationCode)
+			params.Set("redirect_uri", redirectURI)
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, "invalid-client-secret")
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_client"}`, w.Body.String())
+		})
+
+		t.Run("fails with invalid redirect URI", func(t *testing.T) {
+			// Given
+			app := getAppWithAuthorizationCodeIssued(t)
+			params := &url.Values{}
+			params.Set("grant_type", AuthorizationCodeGrant)
+			params.Set("code", authorizationCode)
+			params.Set("redirect_uri", "https://wrong.example.com")
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_grant"}`, w.Body.String())
+		})
+
+		t.Run("fails with invalid authorization code", func(t *testing.T) {
+			// Given
+			app := getAppWithAuthorizationCodeIssued(t)
+			params := &url.Values{}
+			params.Set("grant_type", AuthorizationCodeGrant)
+			params.Set("code", "invalid-code")
+			params.Set("redirect_uri", redirectURI)
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_grant"}`, w.Body.String())
+		})
+
+		t.Run("fails with expired authorization code", func(t *testing.T) {
+			// Given
+			app := getAppWithAuthorizationCodeIssued(t,
+				goauth2.WithClock(seededclock.New(issueTimePlus11Minutes)),
+			)
+			params := &url.Values{}
+			params.Set("grant_type", AuthorizationCodeGrant)
+			params.Set("code", authorizationCode)
+			params.Set("redirect_uri", redirectURI)
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_grant"}`, w.Body.String())
+		})
+
+		t.Run("fails with authorization code for wrong client application id", func(t *testing.T) {
+			// Given
+			eventStore := getStoreWithEvents(t,
+				goauth2.ClientApplicationWasOnBoarded{
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+					RedirectURI:  redirectURI,
+					UserID:       adminUserID,
+				},
+				goauth2.ClientApplicationWasOnBoarded{
+					ClientID:     clientID2,
+					ClientSecret: clientSecret2,
+					RedirectURI:  redirectURI,
+					UserID:       adminUserID,
+				},
+				goauth2.AuthorizationCodeWasIssuedToUser{
+					AuthorizationCode: authorizationCode,
+					UserID:            userID,
+					ClientID:          clientID2,
+					ExpiresAt:         issueTimePlus10Minutes.Unix(),
+					Scope:             scope,
+				},
+			)
+
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(eventStore),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+				goauth2.WithClock(seededclock.New(issueTime)),
+			)))
+			params := &url.Values{}
+			params.Set("grant_type", AuthorizationCodeGrant)
+			params.Set("code", authorizationCode)
+			params.Set("redirect_uri", redirectURI)
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_grant"}`, w.Body.String())
+		})
+
+		t.Run("fails with previously used authorization code", func(t *testing.T) {
+			// Given
+			eventStore := getStoreWithEvents(t,
+				goauth2.ClientApplicationWasOnBoarded{
+					ClientID:     clientID,
+					ClientSecret: clientSecret,
+					RedirectURI:  redirectURI,
+					UserID:       adminUserID,
+				},
+				goauth2.AuthorizationCodeWasIssuedToUser{
+					AuthorizationCode: authorizationCode,
+					UserID:            userID,
+					ClientID:          clientID,
+					ExpiresAt:         issueTimePlus10Minutes.Unix(),
+					Scope:             scope,
+				},
+				goauth2.AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{
+					AuthorizationCode: authorizationCode,
+					UserID:            userID,
+					ClientID:          clientID,
+					Scope:             scope,
+				},
+			)
+
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(eventStore),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+				goauth2.WithClock(seededclock.New(issueTime)),
+			)))
+			params := &url.Values{}
+			params.Set("grant_type", AuthorizationCodeGrant)
+			params.Set("code", authorizationCode)
+			params.Set("redirect_uri", redirectURI)
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.Equal(t, `{"error":"invalid_grant"}`, w.Body.String())
+		})
+	})
+
+	t.Run("Refresh Token Grant Type", func(t *testing.T) {
+		t.Run("issues access and refresh token from refresh token request", func(t *testing.T) {
+			// Given
+			goAuth2App := goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken, nextRefreshToken)),
+			)
+			app := web.New(web.WithGoauth2App(goAuth2App))
+			params := &url.Values{}
+			params.Set("grant_type", ROPCGrant)
+			params.Set("username", email)
+			params.Set("password", password)
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+			app.ServeHTTP(w, r)
+			require.Equal(t, http.StatusOK, w.Result().StatusCode)
+
+			var accessTokenResponse web.AccessTokenResponse
+			err := json.Unmarshal(w.Body.Bytes(), &accessTokenResponse)
+			require.NoError(t, err)
+
+			refreshParams := &url.Values{}
+			refreshParams.Set("grant_type", RefreshTokenGrant)
+			refreshParams.Set("refresh_token", accessTokenResponse.RefreshToken)
+			w = httptest.NewRecorder()
+			r = httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(refreshParams.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+			expiresAt := 1574371565
+			expectedBody := fmt.Sprintf(`{
 				"access_token": "%s",
 				"expires_at": %d,
 				"token_type": "Bearer",
@@ -361,67 +584,54 @@ func Test_TokenEndpoint(t *testing.T) {
 				"refresh_token": "%s"
 			}`, nextAccessToken, expiresAt, scope, nextRefreshToken)
 
-		// When
-		app.ServeHTTP(w, r)
+			// When
+			app.ServeHTTP(w, r)
 
-		// Then
-		require.Equal(t, http.StatusOK, w.Result().StatusCode)
-		assertJsonHeaders(t, w)
-		assert.JSONEq(t, expectedBody, w.Body.String())
-	})
+			// Then
+			require.Equal(t, http.StatusOK, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.JSONEq(t, expectedBody, w.Body.String())
+		})
 
-	t.Run("refresh token grant fails from invalid refresh token", func(t *testing.T) {
-		// Given
-		eventStore := getStoreWithEvents(t,
-			goauth2.ClientApplicationWasOnBoarded{
-				ClientID:     clientID,
-				ClientSecret: clientSecret,
-				RedirectURI:  redirectURI,
-				UserID:       adminUserID,
-			},
-			goauth2.UserWasOnBoarded{
-				UserID:       userID,
-				Username:     email,
-				PasswordHash: passwordHash,
-			},
-		)
-		tokenGenerator := goauth2test.NewSeededTokenGenerator(refreshToken)
-		goAuth2App := goauth2.New(
-			goauth2.WithStore(eventStore),
-			goauth2.WithTokenGenerator(tokenGenerator),
-		)
-		app := web.New(web.WithGoauth2App(goAuth2App))
-		params := &url.Values{}
-		params.Set("grant_type", ROPCGrant)
-		params.Set("username", email)
-		params.Set("password", password)
-		params.Set("scope", scope)
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
-		r.SetBasicAuth(clientID, clientSecret)
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-		app.ServeHTTP(w, r)
-		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		t.Run("refresh token grant fails from invalid refresh token", func(t *testing.T) {
+			// Given
+			goAuth2App := goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+			)
+			app := web.New(web.WithGoauth2App(goAuth2App))
+			params := &url.Values{}
+			params.Set("grant_type", ROPCGrant)
+			params.Set("username", email)
+			params.Set("password", password)
+			params.Set("scope", scope)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+			app.ServeHTTP(w, r)
+			require.Equal(t, http.StatusOK, w.Result().StatusCode)
 
-		var accessTokenResponse web.AccessTokenResponse
-		err := json.Unmarshal(w.Body.Bytes(), &accessTokenResponse)
-		require.NoError(t, err)
+			var accessTokenResponse web.AccessTokenResponse
+			err := json.Unmarshal(w.Body.Bytes(), &accessTokenResponse)
+			require.NoError(t, err)
 
-		refreshParams := &url.Values{}
-		refreshParams.Set("grant_type", RefreshTokenGrant)
-		refreshParams.Set("refresh_token", "wrong-token")
-		w = httptest.NewRecorder()
-		r = httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(refreshParams.Encode()))
-		r.SetBasicAuth(clientID, clientSecret)
-		r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+			refreshParams := &url.Values{}
+			refreshParams.Set("grant_type", RefreshTokenGrant)
+			refreshParams.Set("refresh_token", "wrong-token")
+			w = httptest.NewRecorder()
+			r = httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(refreshParams.Encode()))
+			r.SetBasicAuth(clientID, clientSecret)
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
 
-		// When
-		app.ServeHTTP(w, r)
+			// When
+			app.ServeHTTP(w, r)
 
-		// Then
-		require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
-		assertJsonHeaders(t, w)
-		assert.JSONEq(t, `{"error":"invalid_grant"}`, w.Body.String())
+			// Then
+			require.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+			assertJsonHeaders(t, w)
+			assert.JSONEq(t, `{"error":"invalid_grant"}`, w.Body.String())
+		})
 	})
 
 	t.Run("fails with invalid HTTP form request", func(t *testing.T) {
@@ -461,26 +671,39 @@ func Test_TokenEndpoint(t *testing.T) {
 	})
 }
 
+func getAppWithAuthorizationCodeIssued(t *testing.T, options ...goauth2.Option) http.Handler {
+	eventStore := getStoreWithEvents(t,
+		goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURI:  redirectURI,
+			UserID:       adminUserID,
+		},
+		goauth2.AuthorizationCodeWasIssuedToUser{
+			AuthorizationCode: authorizationCode,
+			UserID:            userID,
+			ClientID:          clientID,
+			ExpiresAt:         issueTimePlus10Minutes.Unix(),
+			Scope:             scope,
+		},
+	)
+
+	options = append([]goauth2.Option{
+		goauth2.WithStore(eventStore),
+		goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+		goauth2.WithClock(seededclock.New(issueTime)),
+	}, options...)
+
+	return web.New(web.WithGoauth2App(goauth2.New(options...)))
+}
+
 func Test_AuthorizeEndpoint(t *testing.T) {
 	const authorizeURI = "/authorize"
 	t.Run("authorization code grant", func(t *testing.T) {
 		t.Run("grants authorization code and redirects", func(t *testing.T) {
 			// Given
-			eventStore := getStoreWithEvents(t,
-				goauth2.ClientApplicationWasOnBoarded{
-					ClientID:     clientID,
-					ClientSecret: clientSecret,
-					RedirectURI:  redirectURI,
-					UserID:       adminUserID,
-				},
-				goauth2.UserWasOnBoarded{
-					UserID:       userID,
-					Username:     email,
-					PasswordHash: passwordHash,
-				},
-			)
 			app := web.New(web.WithGoauth2App(goauth2.New(
-				goauth2.WithStore(eventStore),
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
 				goauth2.WithClock(sequentialclock.New()),
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
 			)))
@@ -514,26 +737,83 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 
 			// Then
 			require.Equal(t, http.StatusFound, w.Result().StatusCode)
+			assert.Equal(t, "", w.Body.String())
+			expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
+			assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+		})
+
+		t.Run("fails with invalid client id", func(t *testing.T) {
+			// Given
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithClock(sequentialclock.New()),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
+			)))
+			params := getAuthorizeParams()
+			params.Set("client_id", "invalid-client-id")
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+			assert.Contains(t, w.Body.String(), "invalid request")
+		})
+
+		t.Run("fails with invalid redirect uri", func(t *testing.T) {
+			// Given
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithClock(sequentialclock.New()),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
+			)))
+			params := getAuthorizeParams()
+			params.Set("redirect_uri", "https://wrong.example.com")
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+			assert.Contains(t, w.Body.String(), "invalid request")
+		})
+
+		t.Run("fails with missing user", func(t *testing.T) {
+			// Given
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithClock(sequentialclock.New()),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
+			)))
+			params := getAuthorizeParams()
+			params.Set("username", "wrong@example.com")
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusFound, w.Result().StatusCode)
 			expectedLocation := "https://example.com/oauth2/callback?error=access_denied&state=some-state"
 			assert.Equal(t, expectedLocation, w.Header().Get("Location"))
 		})
 
 		t.Run("fails with invalid user password", func(t *testing.T) {
 			// Given
-			eventStore := getStoreWithEvents(t,
-				goauth2.ClientApplicationWasOnBoarded{
-					ClientID:     clientID,
-					ClientSecret: clientSecret,
-					RedirectURI:  redirectURI,
-					UserID:       adminUserID,
-				},
-				goauth2.UserWasOnBoarded{
-					UserID:       userID,
-					Username:     email,
-					PasswordHash: passwordHash,
-				},
-			)
-			app := web.New(web.WithGoauth2App(goauth2.New(goauth2.WithStore(eventStore))))
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+			)))
 			params := getAuthorizeParams()
 			params.Set("password", "wrong-pass")
 			w := httptest.NewRecorder()
@@ -553,21 +833,8 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 	t.Run("implicit grant", func(t *testing.T) {
 		t.Run("grants access token via implicit grant and redirects with URI fragment", func(t *testing.T) {
 			// Given
-			eventStore := getStoreWithEvents(t,
-				goauth2.ClientApplicationWasOnBoarded{
-					ClientID:     clientID,
-					ClientSecret: clientSecret,
-					RedirectURI:  redirectURI,
-					UserID:       adminUserID,
-				},
-				goauth2.UserWasOnBoarded{
-					UserID:       userID,
-					Username:     email,
-					PasswordHash: passwordHash,
-				},
-			)
 			app := web.New(web.WithGoauth2App(goauth2.New(
-				goauth2.WithStore(eventStore),
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
 				goauth2.WithClock(sequentialclock.New()),
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
 			)))
@@ -586,6 +853,52 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 			assert.Equal(t, "", w.Body.String())
 			expectedLocation := "https://example.com/oauth2/callback#access_token=f5bb89d486ee458085e476871b177ff4&expires_at=1574371565&scope=read_write&state=some-state&token_type=Bearer"
 			assert.Equal(t, expectedLocation, w.Header().Get("Location"))
+		})
+
+		t.Run("fails with invalid client id", func(t *testing.T) {
+			// Given
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithClock(sequentialclock.New()),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
+			)))
+			params := getAuthorizeParams()
+			params.Set("response_type", ImplicitGrant)
+			params.Set("client_id", "invalid-client-id")
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+			assert.Contains(t, w.Body.String(), "invalid request")
+		})
+
+		t.Run("fails with invalid redirect uri", func(t *testing.T) {
+			// Given
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithClock(sequentialclock.New()),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
+			)))
+			params := getAuthorizeParams()
+			params.Set("response_type", ImplicitGrant)
+			params.Set("redirect_uri", "https://wrong.example.com")
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+			assert.Contains(t, w.Body.String(), "invalid request")
 		})
 
 		t.Run("fails with missing user", func(t *testing.T) {
@@ -609,20 +922,9 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 
 		t.Run("fails with invalid user password", func(t *testing.T) {
 			// Given
-			eventStore := getStoreWithEvents(t,
-				goauth2.ClientApplicationWasOnBoarded{
-					ClientID:     clientID,
-					ClientSecret: clientSecret,
-					RedirectURI:  redirectURI,
-					UserID:       adminUserID,
-				},
-				goauth2.UserWasOnBoarded{
-					UserID:       userID,
-					Username:     email,
-					PasswordHash: passwordHash,
-				},
-			)
-			app := web.New(web.WithGoauth2App(goauth2.New(goauth2.WithStore(eventStore))))
+			app := web.New(web.WithGoauth2App(goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+			)))
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
 			params.Set("password", "wrong-pass")
@@ -720,6 +1022,22 @@ func getStoreWithEvents(t *testing.T, events ...rangedb.Event) rangedb.Store {
 	}
 
 	return eventStore
+}
+
+func getStoreWithClientApplicationAndUserOnBoarded(t *testing.T) rangedb.Store {
+	return getStoreWithEvents(t,
+		goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURI:  redirectURI,
+			UserID:       adminUserID,
+		},
+		goauth2.UserWasOnBoarded{
+			UserID:       userID,
+			Username:     email,
+			PasswordHash: passwordHash,
+		},
+	)
 }
 
 type failingFilesystem struct{}
