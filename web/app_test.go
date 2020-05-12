@@ -57,49 +57,51 @@ var (
 	TemplateAssets         = http.Dir("./templates")
 )
 
-func Test_Login_ServesLoginForm(t *testing.T) {
-	// Given
-	app := web.New(
-		web.WithTemplateFilesystem(TemplateAssets),
-	)
-	params := getAuthorizeParams()
-	uri := fmt.Sprintf("/login?%s", params.Encode())
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, uri, nil)
+func Test_Login(t *testing.T) {
+	t.Run("serves login form", func(t *testing.T) {
+		// Given
+		app := web.New(
+			web.WithTemplateFilesystem(TemplateAssets),
+		)
+		params := getAuthorizeParams()
+		uri := fmt.Sprintf("/login?%s", params.Encode())
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, uri, nil)
 
-	// When
-	app.ServeHTTP(w, r)
+		// When
+		app.ServeHTTP(w, r)
 
-	// Then
-	body := w.Body.String()
-	require.Equal(t, http.StatusOK, w.Result().StatusCode)
-	assert.Equal(t, "HTTP/1.1", w.Result().Proto)
-	assert.Contains(t, body, "form")
-	assert.Contains(t, body, clientID)
-	assert.Contains(t, body, redirectURI)
-	assert.Contains(t, body, codeResponseType)
-	assert.Contains(t, body, scope)
-	assert.Contains(t, body, state)
-}
+		// Then
+		body := w.Body.String()
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+		assert.Contains(t, body, "form")
+		assert.Contains(t, body, clientID)
+		assert.Contains(t, body, redirectURI)
+		assert.Contains(t, body, codeResponseType)
+		assert.Contains(t, body, scope)
+		assert.Contains(t, body, state)
+	})
 
-func Test_Login_FailsToServeLoginForm(t *testing.T) {
-	// Given
-	app := web.New(
-		web.WithTemplateFilesystem(failingFilesystem{}),
-	)
-	params := getAuthorizeParams()
-	uri := fmt.Sprintf("/login?%s", params.Encode())
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, uri, nil)
+	t.Run("fails to serve login form", func(t *testing.T) {
+		// Given
+		app := web.New(
+			web.WithTemplateFilesystem(failingFilesystem{}),
+		)
+		params := getAuthorizeParams()
+		uri := fmt.Sprintf("/login?%s", params.Encode())
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, uri, nil)
 
-	// When
-	app.ServeHTTP(w, r)
+		// When
+		app.ServeHTTP(w, r)
 
-	// Then
-	body := w.Body.String()
-	require.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
-	assert.Equal(t, "HTTP/1.1", w.Result().Proto)
-	assert.Contains(t, body, "internal error")
+		// Then
+		body := w.Body.String()
+		require.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
+		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+		assert.Contains(t, body, "internal error")
+	})
 }
 
 func Test_TokenEndpoint(t *testing.T) {
@@ -671,32 +673,6 @@ func Test_TokenEndpoint(t *testing.T) {
 	})
 }
 
-func getAppWithAuthorizationCodeIssued(t *testing.T, options ...goauth2.Option) http.Handler {
-	eventStore := getStoreWithEvents(t,
-		goauth2.ClientApplicationWasOnBoarded{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			RedirectURI:  redirectURI,
-			UserID:       adminUserID,
-		},
-		goauth2.AuthorizationCodeWasIssuedToUser{
-			AuthorizationCode: authorizationCode,
-			UserID:            userID,
-			ClientID:          clientID,
-			ExpiresAt:         issueTimePlus10Minutes.Unix(),
-			Scope:             scope,
-		},
-	)
-
-	options = append([]goauth2.Option{
-		goauth2.WithStore(eventStore),
-		goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
-		goauth2.WithClock(seededclock.New(issueTime)),
-	}, options...)
-
-	return web.New(web.WithGoauth2App(goauth2.New(options...)))
-}
-
 func Test_AuthorizeEndpoint(t *testing.T) {
 	const authorizeURI = "/authorize"
 	t.Run("authorization code grant", func(t *testing.T) {
@@ -985,11 +961,63 @@ func Test_SavedEvents(t *testing.T) {
 		&rangedbtest.ThatWasDone{},
 	}
 
-	// Then
-	assert.True(t, events.Contains(&rangedbtest.ThingWasDone{}))
-	assert.True(t, events.Contains(&rangedbtest.ThingWasDone{}, &rangedbtest.ThatWasDone{}))
-	assert.False(t, events.Contains(&rangedbtest.AnotherWasComplete{}))
-	assert.False(t, events.Contains(&rangedbtest.AnotherWasComplete{}, &rangedbtest.ThingWasDone{}))
+	t.Run("contains", func(t *testing.T) {
+		// Then
+		assert.True(t, events.Contains(&rangedbtest.ThingWasDone{}))
+		assert.True(t, events.Contains(&rangedbtest.ThingWasDone{}, &rangedbtest.ThatWasDone{}))
+		assert.False(t, events.Contains(&rangedbtest.AnotherWasComplete{}))
+		assert.False(t, events.Contains(&rangedbtest.AnotherWasComplete{}, &rangedbtest.ThingWasDone{}))
+	})
+
+	t.Run("contains any", func(t *testing.T) {
+		// Then
+		assert.True(t, events.ContainsAny(&rangedbtest.AnotherWasComplete{}, &rangedbtest.ThingWasDone{}))
+		assert.True(t, events.ContainsAny(&rangedbtest.ThingWasDone{}, &rangedbtest.ThatWasDone{}))
+	})
+
+	t.Run("get returns an event", func(t *testing.T) {
+		// When
+		actualEvent, err := events.Get(&rangedbtest.ThingWasDone{})
+
+		// Then
+		require.NoError(t, err)
+		assert.IsType(t, &rangedbtest.ThingWasDone{}, actualEvent)
+	})
+
+	t.Run("get does not return an event", func(t *testing.T) {
+		// When
+		actualEvent, err := events.Get(&rangedbtest.AnotherWasComplete{})
+
+		// Then
+		assert.Equal(t, web.EventNotFound, err)
+		assert.Nil(t, actualEvent)
+	})
+}
+
+func getAppWithAuthorizationCodeIssued(t *testing.T, options ...goauth2.Option) http.Handler {
+	eventStore := getStoreWithEvents(t,
+		goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURI:  redirectURI,
+			UserID:       adminUserID,
+		},
+		goauth2.AuthorizationCodeWasIssuedToUser{
+			AuthorizationCode: authorizationCode,
+			UserID:            userID,
+			ClientID:          clientID,
+			ExpiresAt:         issueTimePlus10Minutes.Unix(),
+			Scope:             scope,
+		},
+	)
+
+	options = append([]goauth2.Option{
+		goauth2.WithStore(eventStore),
+		goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+		goauth2.WithClock(seededclock.New(issueTime)),
+	}, options...)
+
+	return web.New(web.WithGoauth2App(goauth2.New(options...)))
 }
 
 func getAuthorizeParams() *url.Values {
