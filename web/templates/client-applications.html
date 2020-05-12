@@ -1,0 +1,31 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <title>Client Applications</title>
+</head>
+<body>
+<div>
+    <h3>Client Applications</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Client ID</th>
+            <th>Client Secret</th>
+            <th>Creation Date</th>
+        </tr>
+        </thead>
+        <tbody>
+        {{range .ClientApplications}}
+            <tr>
+                <td>{{.ClientID}}</td>
+                <td>{{.ClientSecret}}</td>
+                <td class="date">{{formatDate .CreateTimestamp "Jan 02, 2006 15:04:05 UTC"}}</td>
+            </tr>
+        {{end}}
+        </tbody>
+    </table>
+    <ul>
+    </ul>
+</div>
+</body>
+</html>

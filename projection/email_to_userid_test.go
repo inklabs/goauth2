@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/inklabs/rangedb/provider/inmemorystore"
-	"github.com/inklabs/rangedb/provider/jsonrecordserializer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,8 +18,6 @@ func TestEmailToUserID_Accept(t *testing.T) {
 		userID2 = "e0d0f5d7a72b432e8d553a0ac5c3d9b1"
 		email   = "john@example.com"
 	)
-	serializer := jsonrecordserializer.New()
-	goauth2.BindEvents(serializer)
 
 	t.Run("can get userID from email", func(t *testing.T) {
 		// Given

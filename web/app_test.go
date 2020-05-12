@@ -104,6 +104,40 @@ func Test_Login(t *testing.T) {
 	})
 }
 
+func TestListClientApplications(t *testing.T) {
+	// Given
+	eventStore := getStoreWithEvents(t,
+		goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURI:  redirectURI,
+			UserID:       adminUserID,
+		},
+		goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID2,
+			ClientSecret: clientSecret2,
+			RedirectURI:  redirectURI,
+			UserID:       adminUserID,
+		},
+	)
+
+	app := web.New(
+		web.WithGoauth2App(goauth2.New(goauth2.WithStore(eventStore))),
+		web.WithTemplateFilesystem(TemplateAssets),
+	)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/client-applications", nil)
+
+	// When
+	app.ServeHTTP(w, r)
+
+	// Then
+	require.Equal(t, http.StatusOK, w.Result().StatusCode)
+	assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+	body := w.Body.String()
+	assert.Contains(t, body, clientID)
+}
+
 func Test_TokenEndpoint(t *testing.T) {
 	const tokenURI = "/token"
 	t.Run("Client Credentials Grant Type with client application on-boarded", func(t *testing.T) {

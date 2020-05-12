@@ -29,7 +29,7 @@ func (t *TemplateManager) RenderTemplate(w io.Writer, templateName string, data 
 		return IOReadError
 	}
 
-	tmpl, err := template.New("").Parse(string(bytes))
+	tmpl, err := template.New("").Funcs(FuncMap).Parse(string(bytes))
 	if err != nil {
 		return MalformedTemplate
 	}

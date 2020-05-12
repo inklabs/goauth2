@@ -28,7 +28,8 @@ type app struct {
 	templateManager *templatemanager.TemplateManager
 	goauth2App      *goauth2.App
 	projections     struct {
-		emailToUserID *projection.EmailToUserID
+		emailToUserID      *projection.EmailToUserID
+		clientApplications *projection.ClientApplications
 	}
 }
 
@@ -71,11 +72,17 @@ func (a *app) initRoutes() {
 	a.router.HandleFunc("/authorize", a.authorize)
 	a.router.HandleFunc("/login", a.login)
 	a.router.HandleFunc("/token", a.token)
+	a.router.HandleFunc("/client-applications", a.listClientApplications)
 }
 
 func (a *app) initProjections() {
 	a.projections.emailToUserID = projection.NewEmailToUserID()
-	a.goauth2App.SubscribeAndReplay(a.projections.emailToUserID)
+	a.projections.clientApplications = projection.NewClientApplications()
+
+	a.goauth2App.SubscribeAndReplay(
+		a.projections.emailToUserID,
+		a.projections.clientApplications,
+	)
 }
 
 func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +97,7 @@ func (a *app) login(w http.ResponseWriter, r *http.Request) {
 	state := params.Get("state")
 	scope := params.Get("scope")
 
-	err := a.templateManager.RenderTemplate(w, "login.html", struct {
+	a.renderTemplate(w, "login.html", struct {
 		ClientId     string
 		RedirectURI  string
 		ResponseType string
@@ -103,11 +110,30 @@ func (a *app) login(w http.ResponseWriter, r *http.Request) {
 		Scope:        scope,
 		State:        state,
 	})
-	if err != nil {
-		log.Println(err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
+}
+
+func (a *app) listClientApplications(w http.ResponseWriter, _ *http.Request) {
+	type ClientApplication struct {
+		ClientID        string
+		ClientSecret    string
+		CreateTimestamp uint64
 	}
+
+	var clientApplications []ClientApplication
+
+	for _, clientApplication := range a.projections.clientApplications.GetAll() {
+		clientApplications = append(clientApplications, ClientApplication{
+			ClientID:        clientApplication.ClientID,
+			ClientSecret:    clientApplication.ClientSecret,
+			CreateTimestamp: clientApplication.CreateTimestamp,
+		})
+	}
+
+	a.renderTemplate(w, "client-applications.html", struct {
+		ClientApplications []ClientApplication
+	}{
+		ClientApplications: clientApplications,
+	})
 }
 
 func (a *app) authorize(w http.ResponseWriter, r *http.Request) {
@@ -407,6 +433,15 @@ func (a *app) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *http.R
 		RefreshToken: refreshToken,
 	})
 	return
+}
+
+func (a *app) renderTemplate(w http.ResponseWriter, templateName string, data interface{}) {
+	err := a.templateManager.RenderTemplate(w, templateName, data)
+
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}
 }
 
 type errorResponse struct {
