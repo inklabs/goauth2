@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -182,8 +183,8 @@ func (a *app) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Reques
 		Password:    password,
 		Scope:       scope,
 	}))
-	authorizationEvent, err := events.Get(&goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{})
-	if err != nil {
+	var issuedEvent goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant
+	if !events.Get(&issuedEvent) {
 		if events.ContainsAny(
 			&goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{},
 			&goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{},
@@ -201,7 +202,6 @@ func (a *app) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Reques
 		newParams.Set("state", state)
 	}
 
-	issuedEvent := authorizationEvent.(goauth2.AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant)
 	newParams.Set("code", issuedEvent.AuthorizationCode)
 
 	uri := fmt.Sprintf("%s?%s", redirectURI, newParams.Encode())
@@ -229,8 +229,8 @@ func (a *app) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
 		Username:    username,
 		Password:    password,
 	}))
-	accessTokenEvent, err := events.Get(&goauth2.AccessTokenWasIssuedToUserViaImplicitGrant{})
-	if err != nil {
+	var issuedEvent goauth2.AccessTokenWasIssuedToUserViaImplicitGrant
+	if !events.Get(&issuedEvent) {
 		if events.ContainsAny(
 			&goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationID{},
 			&goauth2.RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectURI{},
@@ -243,8 +243,6 @@ func (a *app) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	issuedEvent := accessTokenEvent.(goauth2.AccessTokenWasIssuedToUserViaImplicitGrant)
-
 	newParams := url.Values{}
 	if state != "" {
 		newParams.Set("state", state)
@@ -254,7 +252,6 @@ func (a *app) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
 	newParams.Set("expires_at", strconv.Itoa(expiresAtTODO))
 	newParams.Set("scope", scope)
 	newParams.Set("token_type", "Bearer")
-	_ = issuedEvent
 
 	uri := fmt.Sprintf("%s#%s", redirectURI, newParams.Encode())
 	http.Redirect(w, r, uri, http.StatusFound)
@@ -312,19 +309,18 @@ func (a *app) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, cl
 		Scope:        scope,
 	}))
 
-	refreshTokenEvent, err := events.Get(&goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{})
-	if err != nil {
+	var issuedEvent goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant
+	if !events.Get(&issuedEvent) {
 		writeInvalidGrantResponse(w)
 		return
 	}
-	issuedRefreshTokenEvent := refreshTokenEvent.(goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant)
 
 	writeJsonResponse(w, AccessTokenResponse{
 		AccessToken:  "61272356284f4340b2b1f3f1400ad4d9",
 		ExpiresAt:    expiresAtTODO,
 		TokenType:    "Bearer",
-		RefreshToken: issuedRefreshTokenEvent.NextRefreshToken,
-		Scope:        issuedRefreshTokenEvent.Scope,
+		RefreshToken: issuedEvent.NextRefreshToken,
+		Scope:        issuedEvent.Scope,
 	})
 	return
 }
@@ -358,9 +354,9 @@ func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID, 
 
 	var refreshToken string
 
-	refreshTokenEvent, err := events.Get(&goauth2.RefreshTokenWasIssuedToUserViaROPCGrant{})
-	if err == nil {
-		refreshToken = refreshTokenEvent.(goauth2.RefreshTokenWasIssuedToUserViaROPCGrant).RefreshToken
+	var refreshTokenEvent goauth2.RefreshTokenWasIssuedToUserViaROPCGrant
+	if events.Get(&refreshTokenEvent) {
+		refreshToken = refreshTokenEvent.RefreshToken
 	}
 
 	writeJsonResponse(w, AccessTokenResponse{
@@ -403,8 +399,8 @@ func (a *app) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *http.R
 		RedirectURI:       redirectURI,
 	}))
 
-	accessTokenEvent, err := events.Get(&goauth2.AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{})
-	if err != nil {
+	var accessTokenIssuedEvent goauth2.AccessTokenWasIssuedToUserViaAuthorizationCodeGrant
+	if !events.Get(&accessTokenIssuedEvent) {
 		if events.ContainsAny(
 			&goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{},
 			&goauth2.RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationSecret{},
@@ -417,12 +413,12 @@ func (a *app) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	scope := accessTokenEvent.(goauth2.AccessTokenWasIssuedToUserViaAuthorizationCodeGrant).Scope
+	scope := accessTokenIssuedEvent.Scope
 
 	var refreshToken string
-	refreshTokenEvent, err := events.Get(&goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{})
-	if err == nil {
-		refreshToken = refreshTokenEvent.(goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant).RefreshToken
+	var refreshTokenIssuedEvent goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant
+	if events.Get(&refreshTokenIssuedEvent) {
+		refreshToken = refreshTokenIssuedEvent.RefreshToken
 	}
 
 	writeJsonResponse(w, AccessTokenResponse{
@@ -493,6 +489,7 @@ func errorRedirect(w http.ResponseWriter, r *http.Request, redirectURI, errorMes
 //SavedEvents contains events that have been persisted to the event store.
 type SavedEvents []rangedb.Event
 
+// Contains returns true if all events are found.
 func (l *SavedEvents) Contains(events ...rangedb.Event) bool {
 	var totalFound int
 	for _, event := range events {
@@ -506,6 +503,7 @@ func (l *SavedEvents) Contains(events ...rangedb.Event) bool {
 	return len(events) == totalFound
 }
 
+// ContainsAny returns true if any events are found.
 func (l *SavedEvents) ContainsAny(events ...rangedb.Event) bool {
 	for _, event := range events {
 		for _, savedEvent := range *l {
@@ -518,14 +516,25 @@ func (l *SavedEvents) ContainsAny(events ...rangedb.Event) bool {
 	return false
 }
 
-func (l *SavedEvents) Get(event rangedb.Event) (rangedb.Event, error) {
+// Get returns true if the event was found and stores the result
+// in the value pointed to by event. If it is not found, Get
+// returns false.
+func (l *SavedEvents) Get(event rangedb.Event) bool {
 	for _, savedEvent := range *l {
 		if event.EventType() == savedEvent.EventType() {
-			return savedEvent, nil
+			eventVal := reflect.ValueOf(event)
+			savedEventVal := reflect.ValueOf(savedEvent)
+
+			if savedEventVal.Kind() == reflect.Ptr {
+				savedEventVal = savedEventVal.Elem()
+			}
+
+			if savedEventVal.Type().AssignableTo(eventVal.Type().Elem()) {
+				eventVal.Elem().Set(savedEventVal)
+				return true
+			}
 		}
 	}
 
-	return nil, EventNotFound
+	return false
 }
-
-var EventNotFound = fmt.Errorf("event not found")

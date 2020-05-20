@@ -990,9 +990,16 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 
 func Test_SavedEvents(t *testing.T) {
 	// Given
+	thingWasDone := &rangedbtest.ThingWasDone{
+		ID:     "abc",
+		Number: 123,
+	}
+	thatWasDone := &rangedbtest.ThatWasDone{
+		ID: "xyz",
+	}
 	events := web.SavedEvents{
-		&rangedbtest.ThingWasDone{},
-		&rangedbtest.ThatWasDone{},
+		thingWasDone,
+		thatWasDone,
 	}
 
 	t.Run("contains", func(t *testing.T) {
@@ -1009,22 +1016,51 @@ func Test_SavedEvents(t *testing.T) {
 		assert.True(t, events.ContainsAny(&rangedbtest.ThingWasDone{}, &rangedbtest.ThatWasDone{}))
 	})
 
-	t.Run("get returns an event", func(t *testing.T) {
+	t.Run("get finds an event from a list of pointer events", func(t *testing.T) {
+		// Given
+		var event rangedbtest.ThingWasDone
+
 		// When
-		actualEvent, err := events.Get(&rangedbtest.ThingWasDone{})
+		isFound := events.Get(&event)
 
 		// Then
-		require.NoError(t, err)
-		assert.IsType(t, &rangedbtest.ThingWasDone{}, actualEvent)
+		require.True(t, isFound)
+		assert.Equal(t, *thingWasDone, event)
 	})
 
-	t.Run("get does not return an event", func(t *testing.T) {
+	t.Run("get finds an event from a list of value events", func(t *testing.T) {
+		// Given
+		thingWasDone := rangedbtest.ThingWasDone{
+			ID:     "abc",
+			Number: 123,
+		}
+		thatWasDone := rangedbtest.ThatWasDone{
+			ID: "xyz",
+		}
+		events := web.SavedEvents{
+			thingWasDone,
+			thatWasDone,
+		}
+		var event rangedbtest.ThingWasDone
+
 		// When
-		actualEvent, err := events.Get(&rangedbtest.AnotherWasComplete{})
+		isFound := events.Get(&event)
 
 		// Then
-		assert.Equal(t, web.EventNotFound, err)
-		assert.Nil(t, actualEvent)
+		require.True(t, isFound)
+		assert.Equal(t, thingWasDone, event)
+	})
+
+	t.Run("get does not find an event", func(t *testing.T) {
+		// Given
+		var event rangedbtest.AnotherWasComplete
+
+		// When
+		isFound := events.Get(&event)
+
+		// Then
+		require.False(t, isFound)
+		assert.Equal(t, rangedbtest.AnotherWasComplete{}, event)
 	})
 }
 
