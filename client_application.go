@@ -6,6 +6,13 @@ import (
 	"github.com/inklabs/rangedb"
 )
 
+func ClientApplicationCommandTypes() []string {
+	return []string{
+		OnBoardClientApplication{}.CommandType(),
+		RequestAccessTokenViaClientCredentialsGrant{}.CommandType(),
+	}
+}
+
 type clientApplication struct {
 	IsOnBoarded   bool
 	ClientID      string
@@ -37,54 +44,66 @@ func (a *clientApplication) apply(event rangedb.Event) {
 	}
 }
 
+func (a *clientApplication) GetPendingEvents() []rangedb.Event {
+	return a.pendingEvents
+}
+
 func (a *clientApplication) Handle(command Command) {
 	switch c := command.(type) {
 
 	case OnBoardClientApplication:
-		uri, err := url.Parse(c.RedirectURI)
-		if err != nil {
-			a.emit(OnBoardClientApplicationWasRejectedDueToInvalidRedirectURI{
-				ClientID:    c.ClientID,
-				RedirectURI: c.RedirectURI,
-			})
-			return
-		}
-
-		if uri.Scheme != "https" {
-			a.emit(OnBoardClientApplicationWasRejectedDueToInsecureRedirectURI{
-				ClientID:    c.ClientID,
-				RedirectURI: c.RedirectURI,
-			})
-			return
-		}
-
-		a.emit(ClientApplicationWasOnBoarded{
-			ClientID:     c.ClientID,
-			ClientSecret: c.ClientSecret,
-			RedirectURI:  c.RedirectURI,
-			UserID:       c.UserID,
-		})
+		a.OnBoardClientApplication(c)
 
 	case RequestAccessTokenViaClientCredentialsGrant:
-		if !a.IsOnBoarded {
-			a.emit(RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationID{
-				ClientID: c.ClientID,
-			})
-			return
-		}
-
-		if a.ClientSecret != c.ClientSecret {
-			a.emit(RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationSecret{
-				ClientID: c.ClientID,
-			})
-			return
-		}
-
-		a.emit(AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{
-			ClientID: c.ClientID,
-		})
+		a.RequestAccessTokenViaClientCredentialsGrant(c)
 
 	}
+}
+
+func (a *clientApplication) OnBoardClientApplication(c OnBoardClientApplication) {
+	uri, err := url.Parse(c.RedirectURI)
+	if err != nil {
+		a.emit(OnBoardClientApplicationWasRejectedDueToInvalidRedirectURI{
+			ClientID:    c.ClientID,
+			RedirectURI: c.RedirectURI,
+		})
+		return
+	}
+
+	if uri.Scheme != "https" {
+		a.emit(OnBoardClientApplicationWasRejectedDueToInsecureRedirectURI{
+			ClientID:    c.ClientID,
+			RedirectURI: c.RedirectURI,
+		})
+		return
+	}
+
+	a.emit(ClientApplicationWasOnBoarded{
+		ClientID:     c.ClientID,
+		ClientSecret: c.ClientSecret,
+		RedirectURI:  c.RedirectURI,
+		UserID:       c.UserID,
+	})
+}
+
+func (a *clientApplication) RequestAccessTokenViaClientCredentialsGrant(c RequestAccessTokenViaClientCredentialsGrant) {
+	if !a.IsOnBoarded {
+		a.emit(RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationID{
+			ClientID: c.ClientID,
+		})
+		return
+	}
+
+	if a.ClientSecret != c.ClientSecret {
+		a.emit(RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationSecret{
+			ClientID: c.ClientID,
+		})
+		return
+	}
+
+	a.emit(AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{
+		ClientID: c.ClientID,
+	})
 }
 
 func (a *clientApplication) emit(events ...rangedb.Event) {
@@ -93,8 +112,4 @@ func (a *clientApplication) emit(events ...rangedb.Event) {
 	}
 
 	a.pendingEvents = append(a.pendingEvents, events...)
-}
-
-func (a *clientApplication) GetPendingEvents() []rangedb.Event {
-	return a.pendingEvents
 }

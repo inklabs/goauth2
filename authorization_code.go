@@ -5,6 +5,13 @@ import (
 	"github.com/inklabs/rangedb/pkg/clock"
 )
 
+func AuthorizationCodeCommandTypes() []string {
+	return []string{
+		RequestAccessTokenViaAuthorizationCodeGrant{}.CommandType(),
+		IssueAuthorizationCodeToUser{}.CommandType(),
+	}
+}
+
 type authorizationCode struct {
 	tokenGenerator        TokenGenerator
 	clock                 clock.Clock
@@ -55,76 +62,76 @@ func (a *authorizationCode) Handle(command Command) {
 	switch c := command.(type) {
 
 	case RequestAccessTokenViaAuthorizationCodeGrant:
-		if !a.IsLoaded {
-			a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidAuthorizationCode{
-				AuthorizationCode: c.AuthorizationCode,
-				ClientID:          c.ClientID,
-			})
-			return
-		}
-
-		if a.ClientID != c.ClientID {
-			a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToUnmatchedClientApplicationID{
-				AuthorizationCode: c.AuthorizationCode,
-				RequestedClientID: c.ClientID,
-				ActualClientID:    a.ClientID,
-			})
-			return
-		}
-
-		if a.HasBeenPreviouslyUsed {
-			a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
-				AuthorizationCode: c.AuthorizationCode,
-				ClientID:          c.ClientID,
-				UserID:            a.UserID,
-			})
-			return
-		}
-
-		if a.isExpired() {
-			a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToExpiredAuthorizationCode{
-				AuthorizationCode: c.AuthorizationCode,
-				ClientID:          c.ClientID,
-			})
-			return
-		}
-
-		refreshToken := a.tokenGenerator.New()
-
-		a.emit(
-			AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{
-				AuthorizationCode: c.AuthorizationCode,
-				UserID:            a.UserID,
-				ClientID:          c.ClientID,
-				Scope:             a.Scope,
-			},
-			RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
-				AuthorizationCode: c.AuthorizationCode,
-				UserID:            a.UserID,
-				ClientID:          c.ClientID,
-				RefreshToken:      refreshToken,
-				Scope:             a.Scope,
-			},
-		)
+		a.RequestAccessTokenViaAuthorizationCodeGrant(c)
 
 	case IssueAuthorizationCodeToUser:
-		a.emit(AuthorizationCodeWasIssuedToUser{
-			AuthorizationCode: c.AuthorizationCode,
-			UserID:            c.UserID,
-			ClientID:          c.ClientID,
-			ExpiresAt:         c.ExpiresAt,
-			Scope:             c.Scope,
-		})
+		a.IssueAuthorizationCodeToUser(c)
 
 	}
 }
 
-func (a *authorizationCode) emit(events ...rangedb.Event) {
-	for _, event := range events {
-		a.apply(event)
+func (a *authorizationCode) RequestAccessTokenViaAuthorizationCodeGrant(c RequestAccessTokenViaAuthorizationCodeGrant) {
+	if !a.IsLoaded {
+		a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidAuthorizationCode{
+			AuthorizationCode: c.AuthorizationCode,
+			ClientID:          c.ClientID,
+		})
+		return
 	}
 
-	a.PendingEvents = append(a.PendingEvents, events...)
+	if a.ClientID != c.ClientID {
+		a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToUnmatchedClientApplicationID{
+			AuthorizationCode: c.AuthorizationCode,
+			RequestedClientID: c.ClientID,
+			ActualClientID:    a.ClientID,
+		})
+		return
+	}
+
+	if a.HasBeenPreviouslyUsed {
+		a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
+			AuthorizationCode: c.AuthorizationCode,
+			ClientID:          c.ClientID,
+			UserID:            a.UserID,
+		})
+		return
+	}
+
+	if a.isExpired() {
+		a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToExpiredAuthorizationCode{
+			AuthorizationCode: c.AuthorizationCode,
+			ClientID:          c.ClientID,
+		})
+		return
+	}
+
+	refreshToken := a.tokenGenerator.New()
+
+	a.emit(
+		AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{
+			AuthorizationCode: c.AuthorizationCode,
+			UserID:            a.UserID,
+			ClientID:          c.ClientID,
+			Scope:             a.Scope,
+		},
+		RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
+			AuthorizationCode: c.AuthorizationCode,
+			UserID:            a.UserID,
+			ClientID:          c.ClientID,
+			RefreshToken:      refreshToken,
+			Scope:             a.Scope,
+		},
+	)
+}
+
+func (a *authorizationCode) IssueAuthorizationCodeToUser(c IssueAuthorizationCodeToUser) {
+	a.emit(AuthorizationCodeWasIssuedToUser{
+		AuthorizationCode: c.AuthorizationCode,
+		UserID:            c.UserID,
+		ClientID:          c.ClientID,
+		ExpiresAt:         c.ExpiresAt,
+		Scope:             c.Scope,
+	})
 }
 
 func (a *authorizationCode) GetPendingEvents() []rangedb.Event {
@@ -133,4 +140,12 @@ func (a *authorizationCode) GetPendingEvents() []rangedb.Event {
 
 func (a *authorizationCode) isExpired() bool {
 	return a.clock.Now().Unix() > a.ExpiresAt
+}
+
+func (a *authorizationCode) emit(events ...rangedb.Event) {
+	for _, event := range events {
+		a.apply(event)
+	}
+
+	a.PendingEvents = append(a.PendingEvents, events...)
 }

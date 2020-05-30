@@ -230,11 +230,6 @@ func Test_TokenEndpoint(t *testing.T) {
 
 	t.Run("ROPC Grant Type with client application and user on-boarded", func(t *testing.T) {
 		// Given
-		goAuth2App := goauth2.New(
-			goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
-			goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
-		)
-		app := web.New(web.WithGoauth2App(goAuth2App))
 		params := &url.Values{}
 		params.Set("grant_type", ROPCGrant)
 		params.Set("username", email)
@@ -243,6 +238,11 @@ func Test_TokenEndpoint(t *testing.T) {
 
 		t.Run("issues access and refresh token", func(t *testing.T) {
 			// Given
+			goAuth2App := goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+			)
+			app := web.New(web.WithGoauth2App(goAuth2App))
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, clientSecret)
@@ -267,6 +267,11 @@ func Test_TokenEndpoint(t *testing.T) {
 
 		t.Run("fails with invalid client application id", func(t *testing.T) {
 			// Given
+			goAuth2App := goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+			)
+			app := web.New(web.WithGoauth2App(goAuth2App))
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth("invalid-client-id", clientSecret)
@@ -283,6 +288,11 @@ func Test_TokenEndpoint(t *testing.T) {
 
 		t.Run("fails with invalid client application secret", func(t *testing.T) {
 			// Given
+			goAuth2App := goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+			)
+			app := web.New(web.WithGoauth2App(goAuth2App))
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, "invalid-client-secret")
@@ -299,6 +309,11 @@ func Test_TokenEndpoint(t *testing.T) {
 
 		t.Run("fails with missing user", func(t *testing.T) {
 			// Given
+			goAuth2App := goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+			)
+			app := web.New(web.WithGoauth2App(goAuth2App))
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
 			params.Set("username", "wrong-email@example.com")
@@ -320,6 +335,11 @@ func Test_TokenEndpoint(t *testing.T) {
 
 		t.Run("fails with invalid user password", func(t *testing.T) {
 			// Given
+			goAuth2App := goauth2.New(
+				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
+				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+			)
+			app := web.New(web.WithGoauth2App(goAuth2App))
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
 			params.Set("username", email)

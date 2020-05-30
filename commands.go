@@ -10,9 +10,16 @@ type Command interface {
 	CommandType() string
 }
 
+type CommandHandler interface {
+	PendingEvents
+	Handle(command Command)
+}
+
 type PreCommandHandler interface {
 	PendingEvents
+	CommandTypes() []string
 	Handle(command Command) (shouldContinue bool)
 }
 
 type CommandDispatcher func(command Command) []rangedb.Event
+type CommandHandlerFactory func(command Command) CommandHandler

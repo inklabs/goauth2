@@ -26,66 +26,96 @@ func newResourceOwnerCommandAuthorization(
 	}
 }
 
+func (a *resourceOwnerCommandAuthorization) GetPendingEvents() []rangedb.Event {
+	return a.pendingEvents
+}
+
+func (a *resourceOwnerCommandAuthorization) CommandTypes() []string {
+	return []string{
+		GrantUserAdministratorRole{}.CommandType(),
+		AuthorizeUserToOnBoardClientApplications{}.CommandType(),
+		OnBoardClientApplication{}.CommandType(),
+	}
+}
+
 func (a *resourceOwnerCommandAuthorization) Handle(command Command) bool {
 	switch c := command.(type) {
 
 	case GrantUserAdministratorRole:
-		grantingUser := a.loadResourceOwnerAggregate(c.GrantingUserID)
-
-		if !grantingUser.IsOnBoarded {
-			a.emit(GrantUserAdministratorRoleWasRejectedDueToMissingGrantingUser{
-				UserID:         c.UserID,
-				GrantingUserID: c.GrantingUserID,
-			})
-			return false
-		}
-
-		if !grantingUser.IsAdministrator {
-			a.emit(GrantUserAdministratorRoleWasRejectedDueToNonAdministrator{
-				UserID:         c.UserID,
-				GrantingUserID: c.GrantingUserID,
-			})
-			return false
-		}
+		return a.GrantUserAdministratorRole(c)
 
 	case AuthorizeUserToOnBoardClientApplications:
-		authorizingUser := a.loadResourceOwnerAggregate(c.AuthorizingUserID)
-
-		if !authorizingUser.IsOnBoarded {
-			a.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingAuthorizingUser{
-				UserID:            c.UserID,
-				AuthorizingUserID: c.AuthorizingUserID,
-			})
-			return false
-		}
-
-		if !authorizingUser.IsAdministrator {
-			a.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator{
-				UserID:            c.UserID,
-				AuthorizingUserID: c.AuthorizingUserID,
-			})
-			return false
-		}
+		return a.AuthorizeUserToOnBoardClientApplications(c)
 
 	case OnBoardClientApplication:
-		resourceOwner := a.loadResourceOwnerAggregate(c.UserID)
+		return a.OnBoardClientApplication(c)
 
-		if !resourceOwner.IsOnBoarded {
-			a.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
-				ClientID: c.ClientID,
-				UserID:   c.UserID,
-			})
-			return false
-		}
+	}
 
-		if !resourceOwner.IsAuthorizedToOnboardClientApplications {
-			a.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
-				ClientID: c.ClientID,
-				UserID:   c.UserID,
-			})
-			return false
-		}
+	return true
+}
 
+func (a *resourceOwnerCommandAuthorization) GrantUserAdministratorRole(c GrantUserAdministratorRole) bool {
+	grantingUser := a.loadResourceOwnerAggregate(c.GrantingUserID)
+
+	if !grantingUser.IsOnBoarded {
+		a.emit(GrantUserAdministratorRoleWasRejectedDueToMissingGrantingUser{
+			UserID:         c.UserID,
+			GrantingUserID: c.GrantingUserID,
+		})
+		return false
+	}
+
+	if !grantingUser.IsAdministrator {
+		a.emit(GrantUserAdministratorRoleWasRejectedDueToNonAdministrator{
+			UserID:         c.UserID,
+			GrantingUserID: c.GrantingUserID,
+		})
+		return false
+	}
+
+	return true
+}
+
+func (a *resourceOwnerCommandAuthorization) AuthorizeUserToOnBoardClientApplications(c AuthorizeUserToOnBoardClientApplications) bool {
+	authorizingUser := a.loadResourceOwnerAggregate(c.AuthorizingUserID)
+
+	if !authorizingUser.IsOnBoarded {
+		a.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingAuthorizingUser{
+			UserID:            c.UserID,
+			AuthorizingUserID: c.AuthorizingUserID,
+		})
+		return false
+	}
+
+	if !authorizingUser.IsAdministrator {
+		a.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator{
+			UserID:            c.UserID,
+			AuthorizingUserID: c.AuthorizingUserID,
+		})
+		return false
+	}
+
+	return true
+}
+
+func (a *resourceOwnerCommandAuthorization) OnBoardClientApplication(c OnBoardClientApplication) bool {
+	resourceOwner := a.loadResourceOwnerAggregate(c.UserID)
+
+	if !resourceOwner.IsOnBoarded {
+		a.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
+			ClientID: c.ClientID,
+			UserID:   c.UserID,
+		})
+		return false
+	}
+
+	if !resourceOwner.IsAuthorizedToOnboardClientApplications {
+		a.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
+			ClientID: c.ClientID,
+			UserID:   c.UserID,
+		})
+		return false
 	}
 
 	return true
@@ -101,8 +131,4 @@ func (a *resourceOwnerCommandAuthorization) loadResourceOwnerAggregate(userID st
 		a.tokenGenerator,
 		a.clock,
 	)
-}
-
-func (a *resourceOwnerCommandAuthorization) GetPendingEvents() []rangedb.Event {
-	return a.pendingEvents
 }

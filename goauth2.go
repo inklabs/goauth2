@@ -14,11 +14,12 @@ import (
 
 //App is the OAuth2 CQRS application.
 type App struct {
-	clock              clock.Clock
-	store              rangedb.Store
-	tokenGenerator     TokenGenerator
-	preCommandHandlers []PreCommandHandler
-	logger             *log.Logger
+	clock                   clock.Clock
+	store                   rangedb.Store
+	tokenGenerator          TokenGenerator
+	preCommandHandlers      map[string][]PreCommandHandler
+	commandHandlerFactories map[string]CommandHandlerFactory
+	logger                  *log.Logger
 }
 
 // Option defines functional option parameters for App.
@@ -55,9 +56,11 @@ func WithLogger(logger *log.Logger) Option {
 //New constructs an OAuth2 CQRS application.
 func New(options ...Option) *App {
 	app := &App{
-		store:          inmemorystore.New(),
-		tokenGenerator: uuidtoken.NewGenerator(),
-		clock:          systemclock.New(),
+		store:                   inmemorystore.New(),
+		tokenGenerator:          uuidtoken.NewGenerator(),
+		clock:                   systemclock.New(),
+		commandHandlerFactories: make(map[string]CommandHandlerFactory),
+		preCommandHandlers:      make(map[string][]PreCommandHandler),
 	}
 
 	for _, option := range options {
@@ -66,10 +69,13 @@ func New(options ...Option) *App {
 
 	BindEvents(app.store)
 
-	app.preCommandHandlers = []PreCommandHandler{
-		newResourceOwnerCommandAuthorization(app.store, app.tokenGenerator, app.clock),
-		newClientApplicationCommandAuthorization(app.store),
-	}
+	app.RegisterPreCommandHandler(newClientApplicationCommandAuthorization(app.store))
+	app.RegisterPreCommandHandler(newResourceOwnerCommandAuthorization(app.store, app.tokenGenerator, app.clock))
+
+	app.RegisterCommandHandler(ResourceOwnerCommandTypes(), app.newResourceOwnerAggregate)
+	app.RegisterCommandHandler(ClientApplicationCommandTypes(), app.newClientApplicationAggregate)
+	app.RegisterCommandHandler(AuthorizationCodeCommandTypes(), app.newAuthorizationCodeAggregate)
+	app.RegisterCommandHandler(RefreshTokenCommandTypes(), app.newRefreshTokenAggregate)
 
 	authorizationCodeRefreshTokens := NewAuthorizationCodeRefreshTokens()
 	app.SubscribeAndReplay(authorizationCodeRefreshTokens)
@@ -82,96 +88,71 @@ func New(options ...Option) *App {
 	return app
 }
 
+func (a *App) RegisterPreCommandHandler(handler PreCommandHandler) {
+	for _, commandType := range handler.CommandTypes() {
+		a.preCommandHandlers[commandType] = append(a.preCommandHandlers[commandType], handler)
+	}
+}
+
+func (a *App) RegisterCommandHandler(commandTypes []string, factory CommandHandlerFactory) {
+	for _, commandType := range commandTypes {
+		a.commandHandlerFactories[commandType] = factory
+	}
+}
+
 func (a *App) Dispatch(command Command) []rangedb.Event {
-	var events []rangedb.Event
+	var preHandlerEvents []rangedb.Event
 
-	for _, handler := range a.preCommandHandlers {
-		shouldContinue := handler.Handle(command)
-		events = append(events, a.savePendingEvents(handler)...)
+	preCommandHandlers, ok := a.preCommandHandlers[command.CommandType()]
+	if ok {
+		for _, handler := range preCommandHandlers {
+			shouldContinue := handler.Handle(command)
+			preHandlerEvents = append(preHandlerEvents, a.savePendingEvents(handler)...)
 
-		if !shouldContinue {
-			return events
+			if !shouldContinue {
+				return preHandlerEvents
+			}
 		}
 	}
 
-	switch command.(type) {
-	case RequestAccessTokenViaClientCredentialsGrant:
-		events = a.handleWithClientApplicationAggregate(command)
-
-	case OnBoardUser:
-		events = a.handleWithResourceOwnerAggregate(command)
-
-	case GrantUserAdministratorRole:
-		events = a.handleWithResourceOwnerAggregate(command)
-
-	case AuthorizeUserToOnBoardClientApplications:
-		events = a.handleWithResourceOwnerAggregate(command)
-
-	case OnBoardClientApplication:
-		events = a.handleWithClientApplicationAggregate(command)
-
-	case RequestAccessTokenViaImplicitGrant:
-		events = a.handleWithResourceOwnerAggregate(command)
-
-	case RequestAccessTokenViaROPCGrant:
-		events = a.handleWithResourceOwnerAggregate(command)
-
-	case RequestAccessTokenViaRefreshTokenGrant:
-		events = a.handleWithRefreshTokenAggregate(command)
-
-	case RequestAuthorizationCodeViaAuthorizationCodeGrant:
-		events = a.handleWithResourceOwnerAggregate(command)
-
-	case RequestAccessTokenViaAuthorizationCodeGrant:
-		events = a.handleWithAuthorizationCodeAggregate(command)
-
-	case IssueRefreshTokenToUser:
-		events = a.handleWithRefreshTokenAggregate(command)
-
-	case IssueAuthorizationCodeToUser:
-		events = a.handleWithAuthorizationCodeAggregate(command)
-
-	case RevokeRefreshTokenFromUser:
-		events = a.handleWithRefreshTokenAggregate(command)
-
+	newCommandHandler, ok := a.commandHandlerFactories[command.CommandType()]
+	if !ok {
+		a.logger.Printf("command handler not found")
+		return preHandlerEvents
 	}
 
-	return events
+	handler := newCommandHandler(command)
+	handler.Handle(command)
+	handlerEvents := a.savePendingEvents(handler)
+
+	return append(preHandlerEvents, handlerEvents...)
 }
 
-func (a *App) handleWithClientApplicationAggregate(command Command) []rangedb.Event {
-	aggregate := newClientApplication(a.eventsByStream(rangedb.GetEventStream(command)))
-	aggregate.Handle(command)
-	return a.savePendingEvents(aggregate)
+func (a *App) newClientApplicationAggregate(command Command) CommandHandler {
+	return newClientApplication(a.eventsByStream(rangedb.GetEventStream(command)))
 }
 
-func (a *App) handleWithResourceOwnerAggregate(command Command) []rangedb.Event {
-	aggregate := newResourceOwner(
+func (a *App) newResourceOwnerAggregate(command Command) CommandHandler {
+	return newResourceOwner(
 		a.eventsByStream(rangedb.GetEventStream(command)),
 		a.tokenGenerator,
 		a.clock,
 	)
-	aggregate.Handle(command)
-	return a.savePendingEvents(aggregate)
 }
 
-func (a *App) handleWithRefreshTokenAggregate(command Command) []rangedb.Event {
-	aggregate := newRefreshToken(
-		a.eventsByStream(rangedb.GetEventStream(command)),
-		a.tokenGenerator,
-	)
-	aggregate.Handle(command)
-	return a.savePendingEvents(aggregate)
-}
-
-func (a *App) handleWithAuthorizationCodeAggregate(command Command) []rangedb.Event {
-	aggregate := newAuthorizationCode(
+func (a *App) newAuthorizationCodeAggregate(command Command) CommandHandler {
+	return newAuthorizationCode(
 		a.eventsByStream(rangedb.GetEventStream(command)),
 		a.tokenGenerator,
 		a.clock,
 	)
-	aggregate.Handle(command)
-	return a.savePendingEvents(aggregate)
+}
+
+func (a *App) newRefreshTokenAggregate(command Command) CommandHandler {
+	return newRefreshToken(
+		a.eventsByStream(rangedb.GetEventStream(command)),
+		a.tokenGenerator,
+	)
 }
 
 func (a *App) eventsByStream(streamName string) <-chan *rangedb.Record {
