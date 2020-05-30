@@ -1,6 +1,7 @@
 package bdd
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -61,9 +62,10 @@ func (c *TestCase) Then(expectedEvents ...rangedb.Event) func(*testing.T) {
 			streamExpectedEvents[stream] = append(streamExpectedEvents[stream], event)
 		}
 
+		ctx := context.Background()
 		for stream, expectedEventsInStream := range streamExpectedEvents {
 			eventNumber := streamPreviousEventCounts[stream]
-			actualEvents := eventChannelToSlice(c.store.EventsByStreamStartingWith(stream, eventNumber))
+			actualEvents := eventChannelToSlice(c.store.EventsByStreamStartingWith(ctx, eventNumber, stream))
 
 			assert.Equal(t, expectedEventsInStream, actualEvents, "stream: %s", stream)
 		}
@@ -85,10 +87,11 @@ func (c *TestCase) ThenInspectEvents(f func(t *testing.T, events []rangedb.Event
 
 		c.dispatch(c.command)
 
+		ctx := context.Background()
 		var events []rangedb.Event
 		for _, stream := range getStreamsFromStore(c.store) {
 			eventNumber := streamPreviousEventCounts[stream]
-			actualEvents := eventChannelToSlice(c.store.EventsByStreamStartingWith(stream, eventNumber))
+			actualEvents := eventChannelToSlice(c.store.EventsByStreamStartingWith(ctx, eventNumber, stream))
 
 			events = append(events, actualEvents...)
 		}
@@ -99,7 +102,7 @@ func (c *TestCase) ThenInspectEvents(f func(t *testing.T, events []rangedb.Event
 
 func getStreamsFromStore(store rangedb.Store) []string {
 	streams := make(map[string]struct{})
-	for record := range store.AllEvents() {
+	for record := range store.EventsStartingWith(context.Background(), 0) {
 		streams[rangedb.GetStream(record.AggregateType, record.AggregateID)] = struct{}{}
 	}
 

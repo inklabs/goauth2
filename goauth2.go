@@ -1,6 +1,7 @@
 package goauth2
 
 import (
+	"context"
 	"log"
 
 	"github.com/inklabs/rangedb"
@@ -139,14 +140,14 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 }
 
 func (a *App) handleWithClientApplicationAggregate(command Command) []rangedb.Event {
-	aggregate := newClientApplication(a.store.AllEventsByStream(rangedb.GetEventStream(command)))
+	aggregate := newClientApplication(a.eventsByStream(rangedb.GetEventStream(command)))
 	aggregate.Handle(command)
 	return a.savePendingEvents(aggregate)
 }
 
 func (a *App) handleWithResourceOwnerAggregate(command Command) []rangedb.Event {
 	aggregate := newResourceOwner(
-		a.store.AllEventsByStream(rangedb.GetEventStream(command)),
+		a.eventsByStream(rangedb.GetEventStream(command)),
 		a.tokenGenerator,
 		a.clock,
 	)
@@ -156,7 +157,7 @@ func (a *App) handleWithResourceOwnerAggregate(command Command) []rangedb.Event 
 
 func (a *App) handleWithRefreshTokenAggregate(command Command) []rangedb.Event {
 	aggregate := newRefreshToken(
-		a.store.AllEventsByStream(rangedb.GetEventStream(command)),
+		a.eventsByStream(rangedb.GetEventStream(command)),
 		a.tokenGenerator,
 	)
 	aggregate.Handle(command)
@@ -165,12 +166,16 @@ func (a *App) handleWithRefreshTokenAggregate(command Command) []rangedb.Event {
 
 func (a *App) handleWithAuthorizationCodeAggregate(command Command) []rangedb.Event {
 	aggregate := newAuthorizationCode(
-		a.store.AllEventsByStream(rangedb.GetEventStream(command)),
+		a.eventsByStream(rangedb.GetEventStream(command)),
 		a.tokenGenerator,
 		a.clock,
 	)
 	aggregate.Handle(command)
 	return a.savePendingEvents(aggregate)
+}
+
+func (a *App) eventsByStream(streamName string) <-chan *rangedb.Record {
+	return a.store.EventsByStreamStartingWith(context.Background(), 0, streamName)
 }
 
 func (a *App) savePendingEvents(events PendingEvents) []rangedb.Event {
@@ -185,7 +190,7 @@ func (a *App) savePendingEvents(events PendingEvents) []rangedb.Event {
 }
 
 func (a *App) SubscribeAndReplay(subscribers ...rangedb.RecordSubscriber) {
-	a.store.SubscribeAndReplay(subscribers...)
+	a.store.SubscribeStartingWith(context.Background(), 0, subscribers...)
 }
 
 func resourceOwnerStream(userID string) string {

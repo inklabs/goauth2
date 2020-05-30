@@ -1,6 +1,8 @@
 package goauth2
 
 import (
+	"context"
+
 	"github.com/inklabs/rangedb"
 )
 
@@ -134,7 +136,8 @@ func (h *clientApplicationCommandAuthorization) emit(events ...rangedb.Event) {
 }
 
 func (h *clientApplicationCommandAuthorization) loadClientApplicationAggregate(clientID string) *clientApplication {
-	return newClientApplication(h.store.AllEventsByStream(clientApplicationStream(clientID)))
+	ctx := context.Background()
+	return newClientApplication(h.store.EventsByStreamStartingWith(ctx, 0, clientApplicationStream(clientID)))
 }
 
 func (h *clientApplicationCommandAuthorization) GetPendingEvents() []rangedb.Event {

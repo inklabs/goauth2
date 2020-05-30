@@ -1,6 +1,8 @@
 package goauth2
 
 import (
+	"context"
+
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/clock"
 )
@@ -94,7 +96,11 @@ func (a *resourceOwnerCommandAuthorization) emit(events ...rangedb.Event) {
 }
 
 func (a *resourceOwnerCommandAuthorization) loadResourceOwnerAggregate(userID string) *resourceOwner {
-	return newResourceOwner(a.store.AllEventsByStream(resourceOwnerStream(userID)), a.tokenGenerator, a.clock)
+	return newResourceOwner(
+		a.store.EventsByStreamStartingWith(context.Background(), 0, resourceOwnerStream(userID)),
+		a.tokenGenerator,
+		a.clock,
+	)
 }
 
 func (a *resourceOwnerCommandAuthorization) GetPendingEvents() []rangedb.Event {
