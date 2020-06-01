@@ -5,19 +5,19 @@ import (
 )
 
 type authorizationCodeProcessManager struct {
-	commandDispatcher CommandDispatcher
+	dispatch CommandDispatcher
 }
 
 func newAuthorizationCodeProcessManager(commandDispatcher CommandDispatcher) *authorizationCodeProcessManager {
 	return &authorizationCodeProcessManager{
-		commandDispatcher: commandDispatcher,
+		dispatch: commandDispatcher,
 	}
 }
 
 func (r *authorizationCodeProcessManager) Accept(record *rangedb.Record) {
 	switch event := record.Data.(type) {
 	case *AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant:
-		r.commandDispatcher(IssueAuthorizationCodeToUser{
+		r.dispatch(IssueAuthorizationCodeToUser{
 			AuthorizationCode: event.AuthorizationCode,
 			UserID:            event.UserID,
 			ClientID:          event.ClientID,

@@ -69,13 +69,13 @@ func New(options ...Option) *App {
 
 	BindEvents(app.store)
 
-	app.RegisterPreCommandHandler(newClientApplicationCommandAuthorization(app.store))
-	app.RegisterPreCommandHandler(newResourceOwnerCommandAuthorization(app.store, app.tokenGenerator, app.clock))
+	app.registerPreCommandHandler(newClientApplicationCommandAuthorization(app.store))
+	app.registerPreCommandHandler(newResourceOwnerCommandAuthorization(app.store, app.tokenGenerator, app.clock))
 
-	app.RegisterCommandHandler(ResourceOwnerCommandTypes(), app.newResourceOwnerAggregate)
-	app.RegisterCommandHandler(ClientApplicationCommandTypes(), app.newClientApplicationAggregate)
-	app.RegisterCommandHandler(AuthorizationCodeCommandTypes(), app.newAuthorizationCodeAggregate)
-	app.RegisterCommandHandler(RefreshTokenCommandTypes(), app.newRefreshTokenAggregate)
+	app.registerCommandHandler(ResourceOwnerCommandTypes(), app.newResourceOwnerAggregate)
+	app.registerCommandHandler(ClientApplicationCommandTypes(), app.newClientApplicationAggregate)
+	app.registerCommandHandler(AuthorizationCodeCommandTypes(), app.newAuthorizationCodeAggregate)
+	app.registerCommandHandler(RefreshTokenCommandTypes(), app.newRefreshTokenAggregate)
 
 	authorizationCodeRefreshTokens := NewAuthorizationCodeRefreshTokens()
 	app.SubscribeAndReplay(authorizationCodeRefreshTokens)
@@ -88,13 +88,13 @@ func New(options ...Option) *App {
 	return app
 }
 
-func (a *App) RegisterPreCommandHandler(handler PreCommandHandler) {
+func (a *App) registerPreCommandHandler(handler PreCommandHandler) {
 	for _, commandType := range handler.CommandTypes() {
 		a.preCommandHandlers[commandType] = append(a.preCommandHandlers[commandType], handler)
 	}
 }
 
-func (a *App) RegisterCommandHandler(commandTypes []string, factory CommandHandlerFactory) {
+func (a *App) registerCommandHandler(commandTypes []string, factory CommandHandlerFactory) {
 	for _, commandType := range commandTypes {
 		a.commandHandlerFactories[commandType] = factory
 	}

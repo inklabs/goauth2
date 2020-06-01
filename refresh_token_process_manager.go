@@ -5,7 +5,7 @@ import (
 )
 
 type refreshTokenProcessManager struct {
-	commandDispatcher              CommandDispatcher
+	dispatch                       CommandDispatcher
 	authorizationCodeRefreshtokens *AuthorizationCodeRefreshTokens
 }
 
@@ -14,7 +14,7 @@ func newRefreshTokenProcessManager(
 	authorizationCodeRefreshTokens *AuthorizationCodeRefreshTokens,
 ) *refreshTokenProcessManager {
 	return &refreshTokenProcessManager{
-		commandDispatcher:              commandDispatcher,
+		dispatch:                       commandDispatcher,
 		authorizationCodeRefreshtokens: authorizationCodeRefreshTokens,
 	}
 }
@@ -23,7 +23,7 @@ func (r *refreshTokenProcessManager) Accept(record *rangedb.Record) {
 	switch event := record.Data.(type) {
 
 	case *RefreshTokenWasIssuedToUserViaROPCGrant:
-		r.commandDispatcher(IssueRefreshTokenToUser{
+		r.dispatch(IssueRefreshTokenToUser{
 			RefreshToken: event.RefreshToken,
 			UserID:       event.UserID,
 			ClientID:     event.ClientID,
@@ -31,7 +31,7 @@ func (r *refreshTokenProcessManager) Accept(record *rangedb.Record) {
 		})
 
 	case *RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant:
-		r.commandDispatcher(IssueRefreshTokenToUser{
+		r.dispatch(IssueRefreshTokenToUser{
 			RefreshToken: event.RefreshToken,
 			UserID:       event.UserID,
 			ClientID:     event.ClientID,
@@ -39,7 +39,7 @@ func (r *refreshTokenProcessManager) Accept(record *rangedb.Record) {
 		})
 
 	case *RefreshTokenWasIssuedToUserViaRefreshTokenGrant:
-		r.commandDispatcher(IssueRefreshTokenToUser{
+		r.dispatch(IssueRefreshTokenToUser{
 			RefreshToken: event.NextRefreshToken,
 			UserID:       event.UserID,
 			ClientID:     event.ClientID,
@@ -48,7 +48,7 @@ func (r *refreshTokenProcessManager) Accept(record *rangedb.Record) {
 
 	case *RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode:
 		for _, refreshToken := range r.authorizationCodeRefreshtokens.GetTokens(event.AuthorizationCode) {
-			r.commandDispatcher(RevokeRefreshTokenFromUser{
+			r.dispatch(RevokeRefreshTokenFromUser{
 				RefreshToken: refreshToken,
 				UserID:       event.UserID,
 				ClientID:     event.ClientID,
