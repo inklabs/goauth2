@@ -11,6 +11,10 @@
 
 An OAuth2 server in Go. This project uses an embedded [RangeDB](https://www.github.com/inklabs/rangedb) event store.
 
+## Docs
+
+- [Docs](https://github.com/inklabs/rangedb/tree/master/docs)
+
 ## Docker
 
 ```
