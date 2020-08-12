@@ -13,7 +13,7 @@ An OAuth2 server in Go. This project uses an embedded [RangeDB](https://www.gith
 
 ## Docs
 
-- [Docs](https://github.com/inklabs/rangedb/tree/master/docs)
+- [Docs](https://github.com/inklabs/goauth2/tree/master/docs)
 
 ## Docker
 
