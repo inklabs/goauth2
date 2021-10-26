@@ -76,8 +76,10 @@ type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUserPassword struc
 
 // RequestAccessTokenViaROPCGrant Events
 type AccessTokenWasIssuedToUserViaROPCGrant struct {
-	UserID   string `json:"userID"`
-	ClientID string `json:"clientID"`
+	UserID    string `json:"userID"`
+	ClientID  string `json:"clientID"`
+	ExpiresAt int64  `json:"expiresAt"`
+	Scope     string `json:"scope"`
 }
 type RefreshTokenWasIssuedToUserViaROPCGrant struct {
 	UserID       string `json:"userID"`

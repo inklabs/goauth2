@@ -275,7 +275,7 @@ func (a *app) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
 
 type AccessTokenResponse struct {
 	AccessToken  string `json:"access_token"`
-	ExpiresAt    int    `json:"expires_at"`
+	ExpiresAt    int64  `json:"expires_at"`
 	TokenType    string `json:"token_type"`
 	RefreshToken string `json:"refresh_token,omitempty"`
 	Scope        string `json:"scope,omitempty"`
@@ -358,7 +358,8 @@ func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID, 
 		Password:     password,
 		Scope:        scope,
 	}))
-	if !events.Contains(&goauth2.AccessTokenWasIssuedToUserViaROPCGrant{}) {
+	var accessTokenEvent goauth2.AccessTokenWasIssuedToUserViaROPCGrant
+	if !events.Get(&accessTokenEvent) {
 		if events.Contains(&goauth2.RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{}) {
 			writeInvalidClientResponse(w)
 			return
@@ -369,7 +370,6 @@ func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID, 
 	}
 
 	var refreshToken string
-
 	var refreshTokenEvent goauth2.RefreshTokenWasIssuedToUserViaROPCGrant
 	if events.Get(&refreshTokenEvent) {
 		refreshToken = refreshTokenEvent.RefreshToken
@@ -377,10 +377,10 @@ func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID, 
 
 	writeJsonResponse(w, AccessTokenResponse{
 		AccessToken:  accessTokenTODO,
-		ExpiresAt:    expiresAtTODO,
+		ExpiresAt:    accessTokenEvent.ExpiresAt,
 		TokenType:    "Bearer",
 		RefreshToken: refreshToken,
-		Scope:        scope,
+		Scope:        accessTokenEvent.Scope,
 	})
 	return
 }

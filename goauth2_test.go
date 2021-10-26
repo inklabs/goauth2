@@ -43,6 +43,7 @@ var (
 	issueTimePlus9Minutes  = issueTime.Add(9 * time.Minute)
 	issueTimePlus10Minutes = issueTime.Add(10 * time.Minute)
 	issueTimePlus11Minutes = issueTime.Add(11 * time.Minute)
+	issueTimePlus1Hour     = issueTime.Add(1 * time.Hour)
 )
 
 func Test_OnBoardUser(t *testing.T) {
@@ -494,6 +495,7 @@ func Test_RequestAccessTokenViaImplicitGrant(t *testing.T) {
 func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 	t.Run("access and refresh tokens are issued", goauth2TestCase(
 		goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+		goauth2.WithClock(seededclock.New(issueTime)),
 	).
 		Given(
 			goauth2.UserWasOnBoarded{
@@ -518,8 +520,10 @@ func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 		}).
 		Then(
 			goauth2.AccessTokenWasIssuedToUserViaROPCGrant{
-				UserID:   userID,
-				ClientID: clientID,
+				UserID:    userID,
+				ClientID:  clientID,
+				ExpiresAt: issueTimePlus1Hour.Unix(),
+				Scope:     scope,
 			},
 			goauth2.RefreshTokenWasIssuedToUserViaROPCGrant{
 				UserID:       userID,

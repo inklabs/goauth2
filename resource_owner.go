@@ -10,6 +10,7 @@ import (
 )
 
 const authorizationCodeLifetime = 10 * time.Minute
+const ropcGrantLifetime = 1 * time.Hour
 
 func ResourceOwnerCommandTypes() []string {
 	return []string{
@@ -186,11 +187,14 @@ func (a *resourceOwner) RequestAccessTokenViaROPCGrant(c RequestAccessTokenViaRO
 	}
 
 	token := a.tokenGenerator.New()
+	expiresAt := a.clock.Now().Add(ropcGrantLifetime).Unix()
 
 	a.raise(
 		AccessTokenWasIssuedToUserViaROPCGrant{
-			UserID:   c.UserID,
-			ClientID: c.ClientID,
+			UserID:    c.UserID,
+			ClientID:  c.ClientID,
+			ExpiresAt: expiresAt,
+			Scope:     c.Scope,
 		},
 		RefreshTokenWasIssuedToUserViaROPCGrant{
 			UserID:       c.UserID,

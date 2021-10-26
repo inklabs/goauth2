@@ -55,6 +55,7 @@ var (
 	issueTime              = time.Date(2020, 05, 1, 8, 0, 0, 0, time.UTC)
 	issueTimePlus10Minutes = issueTime.Add(10 * time.Minute)
 	issueTimePlus11Minutes = issueTime.Add(11 * time.Minute)
+	issueTimePlus1Hour     = issueTime.Add(1 * time.Hour)
 )
 
 func Test_Login(t *testing.T) {
@@ -246,6 +247,7 @@ func Test_TokenEndpoint(t *testing.T) {
 			goAuth2App, err := goauth2.New(
 				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
+				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
 			app, err := web.New(web.WithGoauth2App(goAuth2App))
@@ -254,7 +256,7 @@ func Test_TokenEndpoint(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-			expiresAt := 1574371565
+			expiresAt := issueTimePlus1Hour.Unix()
 			expectedBody := fmt.Sprintf(`{
 				"access_token": "%s",
 				"expires_at": %d,
