@@ -1,6 +1,6 @@
 package goauth2
 
-//go:generate go run gen/eventgenerator/main.go -package goauth2 -id ClientID -methodName CommandType -aggregateType client-application -inFile client_application_commands.go -outFile client_application_commands_gen.go
+//go:generate go run github.com/inklabs/rangedb/gen/commandgenerator -id ClientID -aggregateType client-application
 
 type OnBoardClientApplication struct {
 	ClientID     string `json:"clientID"`

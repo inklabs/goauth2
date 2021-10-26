@@ -4,17 +4,17 @@ import (
 	"errors"
 	"html/template"
 	"io"
+	"io/fs"
 	"io/ioutil"
-	"net/http"
 )
 
-//TemplateManager holds templates that can be rendered via the html/template package
+// TemplateManager holds templates that can be rendered via the html/template package
 type TemplateManager struct {
-	templateLoader http.FileSystem
+	templateLoader fs.FS
 }
 
-//New constructs a template manager.
-func New(templateLoader http.FileSystem) *TemplateManager {
+// New constructs a template manager.
+func New(templateLoader fs.FS) *TemplateManager {
 	return &TemplateManager{templateLoader: templateLoader}
 }
 

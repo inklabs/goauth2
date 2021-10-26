@@ -27,13 +27,13 @@ type refreshToken struct {
 	ClientID               string
 }
 
-func newRefreshToken(records <-chan *rangedb.Record, generator TokenGenerator) *refreshToken {
+func newRefreshToken(iter rangedb.RecordIterator, generator TokenGenerator) *refreshToken {
 	aggregate := &refreshToken{
 		tokenGenerator: generator,
 	}
 
-	for record := range records {
-		if event, ok := record.Data.(rangedb.Event); ok {
+	for iter.Next() {
+		if event, ok := iter.Record().Data.(rangedb.Event); ok {
 			aggregate.apply(event)
 		}
 	}
@@ -83,7 +83,7 @@ func (a *refreshToken) GetPendingEvents() []rangedb.Event {
 	return a.PendingEvents
 }
 
-func (a *refreshToken) emit(events ...rangedb.Event) {
+func (a *refreshToken) raise(events ...rangedb.Event) {
 	for _, event := range events {
 		a.apply(event)
 	}
@@ -93,7 +93,7 @@ func (a *refreshToken) emit(events ...rangedb.Event) {
 
 func (a *refreshToken) RequestAccessTokenViaRefreshTokenGrant(c RequestAccessTokenViaRefreshTokenGrant) {
 	if !a.IsLoaded {
-		a.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidRefreshToken{
+		a.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidRefreshToken{
 			RefreshToken: c.RefreshToken,
 			ClientID:     c.ClientID,
 		})
@@ -101,14 +101,14 @@ func (a *refreshToken) RequestAccessTokenViaRefreshTokenGrant(c RequestAccessTok
 	}
 
 	if a.HasBeenPreviouslyUsed {
-		a.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToPreviouslyUsedRefreshToken{
+		a.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToPreviouslyUsedRefreshToken{
 			RefreshToken: c.RefreshToken,
 		})
 		return
 	}
 
 	if a.HasBeenRevoked {
-		a.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToRevokedRefreshToken{
+		a.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToRevokedRefreshToken{
 			RefreshToken: c.RefreshToken,
 			ClientID:     c.ClientID,
 		})
@@ -116,7 +116,7 @@ func (a *refreshToken) RequestAccessTokenViaRefreshTokenGrant(c RequestAccessTok
 	}
 
 	if c.Scope != "" && a.Scope != c.Scope {
-		a.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidScope{
+		a.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidScope{
 			RefreshToken:   c.RefreshToken,
 			ClientID:       c.ClientID,
 			Scope:          a.Scope,
@@ -128,7 +128,7 @@ func (a *refreshToken) RequestAccessTokenViaRefreshTokenGrant(c RequestAccessTok
 	nextRefreshToken := a.tokenGenerator.New()
 
 	if a.IsForUser {
-		a.emit(
+		a.raise(
 			AccessTokenWasIssuedToUserViaRefreshTokenGrant{
 				RefreshToken: c.RefreshToken,
 				UserID:       a.UserID,
@@ -143,7 +143,7 @@ func (a *refreshToken) RequestAccessTokenViaRefreshTokenGrant(c RequestAccessTok
 			},
 		)
 	} else if a.IsForClientApplication {
-		a.emit(
+		a.raise(
 			AccessTokenWasIssuedToClientApplicationViaRefreshTokenGrant{
 				RefreshToken: c.RefreshToken,
 				ClientID:     c.ClientID,
@@ -158,7 +158,7 @@ func (a *refreshToken) RequestAccessTokenViaRefreshTokenGrant(c RequestAccessTok
 }
 
 func (a *refreshToken) IssueRefreshTokenToUser(c IssueRefreshTokenToUser) {
-	a.emit(RefreshTokenWasIssuedToUser{
+	a.raise(RefreshTokenWasIssuedToUser{
 		RefreshToken: c.RefreshToken,
 		UserID:       c.UserID,
 		ClientID:     c.ClientID,
@@ -167,7 +167,7 @@ func (a *refreshToken) IssueRefreshTokenToUser(c IssueRefreshTokenToUser) {
 }
 
 func (a *refreshToken) RevokeRefreshTokenFromUser(c RevokeRefreshTokenFromUser) {
-	a.emit(RefreshTokenWasRevokedFromUser{
+	a.raise(RefreshTokenWasRevokedFromUser{
 		RefreshToken: c.RefreshToken,
 		ClientID:     c.ClientID,
 		UserID:       c.UserID,

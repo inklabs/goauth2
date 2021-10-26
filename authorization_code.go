@@ -24,14 +24,14 @@ type authorizationCode struct {
 	PendingEvents         []rangedb.Event
 }
 
-func newAuthorizationCode(records <-chan *rangedb.Record, generator TokenGenerator, clock clock.Clock) *authorizationCode {
+func newAuthorizationCode(iter rangedb.RecordIterator, generator TokenGenerator, clock clock.Clock) *authorizationCode {
 	aggregate := &authorizationCode{
 		tokenGenerator: generator,
 		clock:          clock,
 	}
 
-	for record := range records {
-		if event, ok := record.Data.(rangedb.Event); ok {
+	for iter.Next() {
+		if event, ok := iter.Record().Data.(rangedb.Event); ok {
 			aggregate.apply(event)
 		}
 	}
@@ -72,7 +72,7 @@ func (a *authorizationCode) Handle(command Command) {
 
 func (a *authorizationCode) RequestAccessTokenViaAuthorizationCodeGrant(c RequestAccessTokenViaAuthorizationCodeGrant) {
 	if !a.IsLoaded {
-		a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidAuthorizationCode{
+		a.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidAuthorizationCode{
 			AuthorizationCode: c.AuthorizationCode,
 			ClientID:          c.ClientID,
 		})
@@ -80,7 +80,7 @@ func (a *authorizationCode) RequestAccessTokenViaAuthorizationCodeGrant(c Reques
 	}
 
 	if a.ClientID != c.ClientID {
-		a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToUnmatchedClientApplicationID{
+		a.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToUnmatchedClientApplicationID{
 			AuthorizationCode: c.AuthorizationCode,
 			RequestedClientID: c.ClientID,
 			ActualClientID:    a.ClientID,
@@ -89,7 +89,7 @@ func (a *authorizationCode) RequestAccessTokenViaAuthorizationCodeGrant(c Reques
 	}
 
 	if a.HasBeenPreviouslyUsed {
-		a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
+		a.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToPreviouslyUsedAuthorizationCode{
 			AuthorizationCode: c.AuthorizationCode,
 			ClientID:          c.ClientID,
 			UserID:            a.UserID,
@@ -98,7 +98,7 @@ func (a *authorizationCode) RequestAccessTokenViaAuthorizationCodeGrant(c Reques
 	}
 
 	if a.isExpired() {
-		a.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToExpiredAuthorizationCode{
+		a.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToExpiredAuthorizationCode{
 			AuthorizationCode: c.AuthorizationCode,
 			ClientID:          c.ClientID,
 		})
@@ -107,7 +107,7 @@ func (a *authorizationCode) RequestAccessTokenViaAuthorizationCodeGrant(c Reques
 
 	refreshToken := a.tokenGenerator.New()
 
-	a.emit(
+	a.raise(
 		AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{
 			AuthorizationCode: c.AuthorizationCode,
 			UserID:            a.UserID,
@@ -125,7 +125,7 @@ func (a *authorizationCode) RequestAccessTokenViaAuthorizationCodeGrant(c Reques
 }
 
 func (a *authorizationCode) IssueAuthorizationCodeToUser(c IssueAuthorizationCodeToUser) {
-	a.emit(AuthorizationCodeWasIssuedToUser{
+	a.raise(AuthorizationCodeWasIssuedToUser{
 		AuthorizationCode: c.AuthorizationCode,
 		UserID:            c.UserID,
 		ClientID:          c.ClientID,
@@ -142,7 +142,7 @@ func (a *authorizationCode) isExpired() bool {
 	return a.clock.Now().Unix() > a.ExpiresAt
 }
 
-func (a *authorizationCode) emit(events ...rangedb.Event) {
+func (a *authorizationCode) raise(events ...rangedb.Event) {
 	for _, event := range events {
 		a.apply(event)
 	}

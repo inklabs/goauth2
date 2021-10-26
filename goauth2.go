@@ -12,7 +12,10 @@ import (
 	"github.com/inklabs/goauth2/provider/uuidtoken"
 )
 
-//App is the OAuth2 CQRS application.
+// Version for Go OAuth2.
+const Version = "0.1.0-dev"
+
+// App is the OAuth2 CQRS application.
 type App struct {
 	clock                   clock.Clock
 	store                   rangedb.Store
@@ -25,21 +28,21 @@ type App struct {
 // Option defines functional option parameters for App.
 type Option func(*App)
 
-//WithClock is a functional option to inject a clock.
+// WithClock is a functional option to inject a clock.
 func WithClock(clock clock.Clock) Option {
 	return func(app *App) {
 		app.clock = clock
 	}
 }
 
-//WithStore is a functional option to inject a RangeDB Event Store.
+// WithStore is a functional option to inject a RangeDB Event Store.
 func WithStore(store rangedb.Store) Option {
 	return func(app *App) {
 		app.store = store
 	}
 }
 
-//WithTokenGenerator is a functional option to inject a token generator.
+// WithTokenGenerator is a functional option to inject a token generator.
 func WithTokenGenerator(generator TokenGenerator) Option {
 	return func(app *App) {
 		app.tokenGenerator = generator
@@ -53,8 +56,8 @@ func WithLogger(logger *log.Logger) Option {
 	}
 }
 
-//New constructs an OAuth2 CQRS application.
-func New(options ...Option) *App {
+// New constructs an OAuth2 CQRS application.
+func New(options ...Option) (*App, error) {
 	app := &App{
 		store:                   inmemorystore.New(),
 		tokenGenerator:          uuidtoken.NewGenerator(),
@@ -78,14 +81,23 @@ func New(options ...Option) *App {
 	app.registerCommandHandler(RefreshTokenCommandTypes(), app.newRefreshTokenAggregate)
 
 	authorizationCodeRefreshTokens := NewAuthorizationCodeRefreshTokens()
-	app.SubscribeAndReplay(authorizationCodeRefreshTokens)
+	err := app.SubscribeAndReplay(authorizationCodeRefreshTokens)
+	if err != nil {
+		return nil, err
+	}
 
-	app.store.Subscribe(
+	ctx := context.Background()
+	subscribers := newMultipleSubscriber(
 		newRefreshTokenProcessManager(app.Dispatch, authorizationCodeRefreshTokens),
 		newAuthorizationCodeProcessManager(app.Dispatch),
 	)
+	subscriber := app.store.AllEventsSubscription(ctx, 10, subscribers)
+	err = subscriber.Start()
+	if err != nil {
+		return nil, err
+	}
 
-	return app
+	return app, nil
 }
 
 func (a *App) registerPreCommandHandler(handler PreCommandHandler) {
@@ -155,14 +167,17 @@ func (a *App) newRefreshTokenAggregate(command Command) CommandHandler {
 	)
 }
 
-func (a *App) eventsByStream(streamName string) <-chan *rangedb.Record {
-	return a.store.EventsByStreamStartingWith(context.Background(), 0, streamName)
+func (a *App) eventsByStream(streamName string) rangedb.RecordIterator {
+	return a.store.EventsByStream(context.Background(), 0, streamName)
 }
 
 func (a *App) savePendingEvents(events PendingEvents) []rangedb.Event {
 	pendingEvents := events.GetPendingEvents()
+	ctx := context.Background()
 	for _, event := range pendingEvents {
-		err := a.store.Save(event, nil)
+		_, err := a.store.Save(ctx, &rangedb.EventRecord{
+			Event: event,
+		})
 		if err != nil {
 			a.logger.Printf("unable to save event: %v", err)
 		}
@@ -170,8 +185,15 @@ func (a *App) savePendingEvents(events PendingEvents) []rangedb.Event {
 	return pendingEvents
 }
 
-func (a *App) SubscribeAndReplay(subscribers ...rangedb.RecordSubscriber) {
-	a.store.SubscribeStartingWith(context.Background(), 0, subscribers...)
+func (a *App) SubscribeAndReplay(subscribers ...rangedb.RecordSubscriber) error {
+	ctx := context.Background()
+	subscription := a.store.AllEventsSubscription(ctx, 50, newMultipleSubscriber(subscribers...))
+	err := subscription.StartFrom(0)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func resourceOwnerStream(userID string) string {
@@ -180,4 +202,20 @@ func resourceOwnerStream(userID string) string {
 
 func clientApplicationStream(clientID string) string {
 	return rangedb.GetEventStream(ClientApplicationWasOnBoarded{ClientID: clientID})
+}
+
+type multipleSubscriber struct {
+	subscribers []rangedb.RecordSubscriber
+}
+
+func newMultipleSubscriber(subscribers ...rangedb.RecordSubscriber) *multipleSubscriber {
+	return &multipleSubscriber{
+		subscribers: subscribers,
+	}
+}
+
+func (m multipleSubscriber) Accept(record *rangedb.Record) {
+	for _, subscriber := range m.subscribers {
+		subscriber.Accept(record)
+	}
 }

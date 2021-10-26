@@ -58,7 +58,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaImplicitGra
 	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationID{
+		h.raise(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationID{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -66,7 +66,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaImplicitGra
 	}
 
 	if clientApplication.RedirectURI != c.RedirectURI {
-		h.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
+		h.raise(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 			UserID:      c.UserID,
 			ClientID:    c.ClientID,
 			RedirectURI: c.RedirectURI,
@@ -81,7 +81,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaROPCGrant(c
 	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.emit(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
+		h.raise(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -89,7 +89,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaROPCGrant(c
 	}
 
 	if clientApplication.ClientSecret != c.ClientSecret {
-		h.emit(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
+		h.raise(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -103,7 +103,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaRefreshToke
 	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
+		h.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
 			RefreshToken: c.RefreshToken,
 			ClientID:     c.ClientID,
 		})
@@ -111,7 +111,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaRefreshToke
 	}
 
 	if clientApplication.ClientSecret != c.ClientSecret {
-		h.emit(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
+		h.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
 			RefreshToken: c.RefreshToken,
 			ClientID:     c.ClientID,
 		})
@@ -125,7 +125,7 @@ func (h *clientApplicationCommandAuthorization) RequestAuthorizationCodeViaAutho
 	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
+		h.raise(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -133,7 +133,7 @@ func (h *clientApplicationCommandAuthorization) RequestAuthorizationCodeViaAutho
 	}
 
 	if clientApplication.RedirectURI != c.RedirectURI {
-		h.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
+		h.raise(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 			UserID:      c.UserID,
 			ClientID:    c.ClientID,
 			RedirectURI: c.RedirectURI,
@@ -148,7 +148,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaAuthorizati
 	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
+		h.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
 			AuthorizationCode: c.AuthorizationCode,
 			ClientID:          c.ClientID,
 		})
@@ -156,7 +156,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaAuthorizati
 	}
 
 	if clientApplication.ClientSecret != c.ClientSecret {
-		h.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationSecret{
+		h.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationSecret{
 			AuthorizationCode: c.AuthorizationCode,
 			ClientID:          c.ClientID,
 		})
@@ -164,7 +164,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaAuthorizati
 	}
 
 	if clientApplication.RedirectURI != c.RedirectURI {
-		h.emit(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
+		h.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 			AuthorizationCode: c.AuthorizationCode,
 			ClientID:          c.ClientID,
 			RedirectURI:       c.RedirectURI,
@@ -177,9 +177,9 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaAuthorizati
 
 func (h *clientApplicationCommandAuthorization) loadClientApplicationAggregate(clientID string) *clientApplication {
 	ctx := context.Background()
-	return newClientApplication(h.store.EventsByStreamStartingWith(ctx, 0, clientApplicationStream(clientID)))
+	return newClientApplication(h.store.EventsByStream(ctx, 0, clientApplicationStream(clientID)))
 }
 
-func (h *clientApplicationCommandAuthorization) emit(events ...rangedb.Event) {
+func (h *clientApplicationCommandAuthorization) raise(events ...rangedb.Event) {
 	h.pendingEvents = append(h.pendingEvents, events...)
 }

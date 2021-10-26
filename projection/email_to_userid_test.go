@@ -3,7 +3,7 @@ package projection_test
 import (
 	"testing"
 
-	"github.com/inklabs/rangedb/provider/inmemorystore"
+	"github.com/inklabs/rangedb/rangedbtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,14 +21,11 @@ func TestEmailToUserID_Accept(t *testing.T) {
 
 	t.Run("can get userID from email", func(t *testing.T) {
 		// Given
-		store := inmemorystore.New()
-		goauth2.BindEvents(store)
 		emailToUserID := projection.NewEmailToUserID()
-		store.Subscribe(emailToUserID)
-		require.NoError(t, store.Save(goauth2.UserWasOnBoarded{
+		emailToUserID.Accept(rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
 			UserID:   userID,
 			Username: email,
-		}, nil))
+		}))
 
 		// When
 		actualUserID, err := emailToUserID.GetUserID(email)
@@ -40,14 +37,11 @@ func TestEmailToUserID_Accept(t *testing.T) {
 
 	t.Run("returns error for missing email", func(t *testing.T) {
 		// Given
-		store := inmemorystore.New()
-		goauth2.BindEvents(store)
 		emailToUserID := projection.NewEmailToUserID()
-		store.Subscribe(emailToUserID)
-		require.NoError(t, store.Save(goauth2.UserWasOnBoarded{
+		emailToUserID.Accept(rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
 			UserID:   userID,
 			Username: email,
-		}, nil))
+		}))
 
 		// When
 		actualUserID, err := emailToUserID.GetUserID("wrong-email@example.com")
@@ -59,18 +53,15 @@ func TestEmailToUserID_Accept(t *testing.T) {
 
 	t.Run("can get userID from email with duplicate email", func(t *testing.T) {
 		// Given
-		store := inmemorystore.New()
-		goauth2.BindEvents(store)
 		emailToUserID := projection.NewEmailToUserID()
-		store.Subscribe(emailToUserID)
-		require.NoError(t, store.Save(goauth2.UserWasOnBoarded{
+		emailToUserID.Accept(rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
 			UserID:   userID,
 			Username: email,
-		}, nil))
-		require.NoError(t, store.Save(goauth2.UserWasOnBoarded{
+		}))
+		emailToUserID.Accept(rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
 			UserID:   userID2,
 			Username: email,
-		}, nil))
+		}))
 
 		// When
 		actualUserID, err := emailToUserID.GetUserID(email)

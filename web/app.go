@@ -1,8 +1,10 @@
 package web
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -22,7 +24,8 @@ const (
 	expiresAtTODO   = 1574371565
 )
 
-//go:generate go run github.com/shurcooL/vfsgen/cmd/vfsgendev -source="github.com/inklabs/goauth2/web".TemplateAssets
+//go:embed templates
+var templateAssets embed.FS
 
 type app struct {
 	router          *mux.Router
@@ -34,28 +37,38 @@ type app struct {
 	}
 }
 
-//Option defines functional option parameters for app.
+// Option defines functional option parameters for app.
 type Option func(*app)
 
-//WithTemplateFilesystem is a functional option to inject a template loader.
-func WithTemplateFilesystem(fileSystem http.FileSystem) Option {
+// WithTemplateFilesystem is a functional option to inject a template loader.
+func WithTemplateFilesystem(fileSystem fs.FS) Option {
 	return func(app *app) {
 		app.templateManager = templatemanager.New(fileSystem)
 	}
 }
 
-//WithGoauth2App is a functional option to inject a goauth2 application.
+// WithGoauth2App is a functional option to inject a goauth2 application.
 func WithGoauth2App(goauth2App *goauth2.App) Option {
 	return func(app *app) {
 		app.goauth2App = goauth2App
 	}
 }
 
-//New constructs an app.
-func New(options ...Option) *app {
+// New constructs an app.
+func New(options ...Option) (*app, error) {
+	goauth2App, err := goauth2.New()
+	if err != nil {
+		return nil, err
+	}
+
+	assets, templateErr := fs.Sub(templateAssets, "templates")
+	if templateErr != nil {
+		return nil, templateErr
+	}
+
 	app := &app{
-		templateManager: templatemanager.New(TemplateAssets),
-		goauth2App:      goauth2.New(),
+		templateManager: templatemanager.New(assets),
+		goauth2App:      goauth2App,
 	}
 
 	for _, option := range options {
@@ -63,9 +76,12 @@ func New(options ...Option) *app {
 	}
 
 	app.initRoutes()
-	app.initProjections()
+	err = app.initProjections()
+	if err != nil {
+		return nil, err
+	}
 
-	return app
+	return app, nil
 }
 
 func (a *app) initRoutes() {
@@ -76,11 +92,11 @@ func (a *app) initRoutes() {
 	a.router.HandleFunc("/client-applications", a.listClientApplications)
 }
 
-func (a *app) initProjections() {
+func (a *app) initProjections() error {
 	a.projections.emailToUserID = projection.NewEmailToUserID()
 	a.projections.clientApplications = projection.NewClientApplications()
 
-	a.goauth2App.SubscribeAndReplay(
+	return a.goauth2App.SubscribeAndReplay(
 		a.projections.emailToUserID,
 		a.projections.clientApplications,
 	)
@@ -486,7 +502,7 @@ func errorRedirect(w http.ResponseWriter, r *http.Request, redirectURI, errorMes
 	http.Redirect(w, r, uri, http.StatusFound)
 }
 
-//SavedEvents contains events that have been persisted to the event store.
+// SavedEvents contains events that have been persisted to the event store.
 type SavedEvents []rangedb.Event
 
 // Contains returns true if all events are found.

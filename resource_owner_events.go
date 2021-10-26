@@ -1,6 +1,6 @@
 package goauth2
 
-//go:generate go run gen/eventgenerator/main.go -package goauth2 -id UserID -methodName EventType -aggregateType resource-owner -inFile resource_owner_events.go -outFile resource_owner_events_gen.go
+//go:generate go run github.com/inklabs/rangedb/gen/eventgenerator -id UserID -aggregateType resource-owner
 
 // OnBoardUser Events
 type UserWasOnBoarded struct {

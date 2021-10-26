@@ -1469,39 +1469,49 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 func TestEventsAreBoundProperly(t *testing.T) {
 	t.Run("by default", func(t *testing.T) {
 		// Given
-		app := goauth2.New()
+		app, err := goauth2.New()
+		require.NoError(t, err)
 		recorder := &eventRecorder{}
-		app.SubscribeAndReplay(recorder)
+		blockingSubscriber := rangedbtest.NewBlockingSubscriber(recorder)
+		require.NoError(t, app.SubscribeAndReplay(blockingSubscriber))
 
 		// When
-		app.Dispatch(goauth2.OnBoardUser{
+		events := app.Dispatch(goauth2.OnBoardUser{
 			UserID:   userID,
 			Username: email,
 			Password: password,
 		})
 
 		// Then
-		assert.Equal(t, 1, len(recorder.Records))
+		rangedbtest.ReadRecord(t, blockingSubscriber.Records)
+		require.Len(t, recorder.Records, 1)
 		assert.IsType(t, &goauth2.UserWasOnBoarded{}, recorder.Records[0].Data)
+		require.Len(t, events, 1)
+		assert.IsType(t, goauth2.UserWasOnBoarded{}, events[0])
 	})
 
 	t.Run("when injecting a store", func(t *testing.T) {
 		// Given
 		store := inmemorystore.New()
-		app := goauth2.New(goauth2.WithStore(store))
+		app, err := goauth2.New(goauth2.WithStore(store))
+		require.NoError(t, err)
 		recorder := &eventRecorder{}
-		app.SubscribeAndReplay(recorder)
+		blockingSubscriber := rangedbtest.NewBlockingSubscriber(recorder)
+		require.NoError(t, app.SubscribeAndReplay(blockingSubscriber))
 
 		// When
-		app.Dispatch(goauth2.OnBoardUser{
+		events := app.Dispatch(goauth2.OnBoardUser{
 			UserID:   userID,
 			Username: email,
 			Password: password,
 		})
 
 		// Then
-		assert.Equal(t, 1, len(recorder.Records))
+		rangedbtest.ReadRecord(t, blockingSubscriber.Records)
+		require.Len(t, recorder.Records, 1)
 		assert.IsType(t, &goauth2.UserWasOnBoarded{}, recorder.Records[0].Data)
+		require.Len(t, events, 1)
+		assert.IsType(t, goauth2.UserWasOnBoarded{}, events[0])
 	})
 }
 

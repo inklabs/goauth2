@@ -4,10 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/inklabs/rangedb/pkg/clock/provider/seededclock"
-	"github.com/inklabs/rangedb/provider/inmemorystore"
+	"github.com/inklabs/rangedb/rangedbtest"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/inklabs/goauth2"
 	"github.com/inklabs/goauth2/projection"
@@ -25,18 +23,15 @@ func TestClientApplications_Accept(t *testing.T) {
 
 	t.Run("can get all client applications", func(t *testing.T) {
 		// Given
-		store := inmemorystore.New(
-			inmemorystore.WithClock(seededclock.New(issueTime)),
-		)
-		goauth2.BindEvents(store)
 		clientApplications := projection.NewClientApplications()
-		store.Subscribe(clientApplications)
-		require.NoError(t, store.Save(goauth2.ClientApplicationWasOnBoarded{
+		record := rangedbtest.DummyRecordFromEvent(&goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURI:  redirectURI,
 			UserID:       userID,
-		}, nil))
+		})
+		record.InsertTimestamp = uint64(issueTime.Unix())
+		clientApplications.Accept(record)
 
 		// When
 		actualClientApplications := clientApplications.GetAll()

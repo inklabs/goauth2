@@ -33,14 +33,14 @@ type resourceOwner struct {
 	clock                                   clock.Clock
 }
 
-func newResourceOwner(records <-chan *rangedb.Record, tokenGenerator TokenGenerator, clock clock.Clock) *resourceOwner {
+func newResourceOwner(iter rangedb.RecordIterator, tokenGenerator TokenGenerator, clock clock.Clock) *resourceOwner {
 	aggregate := &resourceOwner{
 		tokenGenerator: tokenGenerator,
 		clock:          clock,
 	}
 
-	for record := range records {
-		if event, ok := record.Data.(rangedb.Event); ok {
+	for iter.Next() {
+		if event, ok := iter.Record().Data.(rangedb.Event); ok {
 			aggregate.apply(event)
 		}
 	}
@@ -95,20 +95,20 @@ func (a *resourceOwner) Handle(command Command) {
 
 func (a *resourceOwner) OnBoardUser(c OnBoardUser) {
 	if a.IsOnBoarded {
-		a.emit(OnBoardUserWasRejectedDueToExistingUser{
+		a.raise(OnBoardUserWasRejectedDueToExistingUser{
 			UserID: c.UserID,
 		})
 		return
 	}
 
 	if securepass.IsInsecure(c.Password) {
-		a.emit(OnBoardUserWasRejectedDueToInsecurePassword{
+		a.raise(OnBoardUserWasRejectedDueToInsecurePassword{
 			UserID: c.UserID,
 		})
 		return
 	}
 
-	a.emit(UserWasOnBoarded{
+	a.raise(UserWasOnBoarded{
 		UserID:       c.UserID,
 		Username:     c.Username,
 		PasswordHash: GeneratePasswordHash(c.Password),
@@ -117,14 +117,14 @@ func (a *resourceOwner) OnBoardUser(c OnBoardUser) {
 
 func (a *resourceOwner) GrantUserAdministratorRole(c GrantUserAdministratorRole) {
 	if !a.IsOnBoarded {
-		a.emit(GrantUserAdministratorRoleWasRejectedDueToMissingTargetUser{
+		a.raise(GrantUserAdministratorRoleWasRejectedDueToMissingTargetUser{
 			UserID:         c.UserID,
 			GrantingUserID: c.GrantingUserID,
 		})
 		return
 	}
 
-	a.emit(UserWasGrantedAdministratorRole{
+	a.raise(UserWasGrantedAdministratorRole{
 		UserID:         c.UserID,
 		GrantingUserID: c.GrantingUserID,
 	})
@@ -132,14 +132,14 @@ func (a *resourceOwner) GrantUserAdministratorRole(c GrantUserAdministratorRole)
 
 func (a *resourceOwner) AuthorizeUserToOnBoardClientApplications(c AuthorizeUserToOnBoardClientApplications) {
 	if !a.IsOnBoarded {
-		a.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingTargetUser{
+		a.raise(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingTargetUser{
 			UserID:            c.UserID,
 			AuthorizingUserID: c.AuthorizingUserID,
 		})
 		return
 	}
 
-	a.emit(UserWasAuthorizedToOnBoardClientApplications{
+	a.raise(UserWasAuthorizedToOnBoardClientApplications{
 		UserID:            c.UserID,
 		AuthorizingUserID: c.AuthorizingUserID,
 	})
@@ -147,7 +147,7 @@ func (a *resourceOwner) AuthorizeUserToOnBoardClientApplications(c AuthorizeUser
 
 func (a *resourceOwner) RequestAccessTokenViaImplicitGrant(c RequestAccessTokenViaImplicitGrant) {
 	if !a.IsOnBoarded {
-		a.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUser{
+		a.raise(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUser{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -155,14 +155,14 @@ func (a *resourceOwner) RequestAccessTokenViaImplicitGrant(c RequestAccessTokenV
 	}
 
 	if !a.isPasswordValid(c.Password) {
-		a.emit(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUserPassword{
+		a.raise(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUserPassword{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
 		return
 	}
 
-	a.emit(AccessTokenWasIssuedToUserViaImplicitGrant{
+	a.raise(AccessTokenWasIssuedToUserViaImplicitGrant{
 		UserID:   c.UserID,
 		ClientID: c.ClientID,
 	})
@@ -170,7 +170,7 @@ func (a *resourceOwner) RequestAccessTokenViaImplicitGrant(c RequestAccessTokenV
 
 func (a *resourceOwner) RequestAccessTokenViaROPCGrant(c RequestAccessTokenViaROPCGrant) {
 	if !a.IsOnBoarded {
-		a.emit(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUser{
+		a.raise(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUser{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -178,7 +178,7 @@ func (a *resourceOwner) RequestAccessTokenViaROPCGrant(c RequestAccessTokenViaRO
 	}
 
 	if !a.isPasswordValid(c.Password) {
-		a.emit(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUserPassword{
+		a.raise(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidUserPassword{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -187,7 +187,7 @@ func (a *resourceOwner) RequestAccessTokenViaROPCGrant(c RequestAccessTokenViaRO
 
 	token := a.tokenGenerator.New()
 
-	a.emit(
+	a.raise(
 		AccessTokenWasIssuedToUserViaROPCGrant{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
@@ -203,7 +203,7 @@ func (a *resourceOwner) RequestAccessTokenViaROPCGrant(c RequestAccessTokenViaRO
 
 func (a *resourceOwner) RequestAuthorizationCodeViaAuthorizationCodeGrant(c RequestAuthorizationCodeViaAuthorizationCodeGrant) {
 	if !a.IsOnBoarded {
-		a.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUser{
+		a.raise(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUser{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -211,7 +211,7 @@ func (a *resourceOwner) RequestAuthorizationCodeViaAuthorizationCodeGrant(c Requ
 	}
 
 	if !a.isPasswordValid(c.Password) {
-		a.emit(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUserPassword{
+		a.raise(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidUserPassword{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -222,7 +222,7 @@ func (a *resourceOwner) RequestAuthorizationCodeViaAuthorizationCodeGrant(c Requ
 
 	expiresAt := a.clock.Now().Add(authorizationCodeLifetime).Unix()
 
-	a.emit(AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{
+	a.raise(AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant{
 		UserID:            c.UserID,
 		ClientID:          c.ClientID,
 		AuthorizationCode: authorizationCode,
@@ -235,7 +235,7 @@ func (a *resourceOwner) isPasswordValid(password string) bool {
 	return VerifyPassword(a.PasswordHash, password)
 }
 
-func (a *resourceOwner) emit(events ...rangedb.Event) {
+func (a *resourceOwner) raise(events ...rangedb.Event) {
 	for _, event := range events {
 		a.apply(event)
 	}

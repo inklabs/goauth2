@@ -59,7 +59,7 @@ func (a *resourceOwnerCommandAuthorization) GrantUserAdministratorRole(c GrantUs
 	grantingUser := a.loadResourceOwnerAggregate(c.GrantingUserID)
 
 	if !grantingUser.IsOnBoarded {
-		a.emit(GrantUserAdministratorRoleWasRejectedDueToMissingGrantingUser{
+		a.raise(GrantUserAdministratorRoleWasRejectedDueToMissingGrantingUser{
 			UserID:         c.UserID,
 			GrantingUserID: c.GrantingUserID,
 		})
@@ -67,7 +67,7 @@ func (a *resourceOwnerCommandAuthorization) GrantUserAdministratorRole(c GrantUs
 	}
 
 	if !grantingUser.IsAdministrator {
-		a.emit(GrantUserAdministratorRoleWasRejectedDueToNonAdministrator{
+		a.raise(GrantUserAdministratorRoleWasRejectedDueToNonAdministrator{
 			UserID:         c.UserID,
 			GrantingUserID: c.GrantingUserID,
 		})
@@ -81,7 +81,7 @@ func (a *resourceOwnerCommandAuthorization) AuthorizeUserToOnBoardClientApplicat
 	authorizingUser := a.loadResourceOwnerAggregate(c.AuthorizingUserID)
 
 	if !authorizingUser.IsOnBoarded {
-		a.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingAuthorizingUser{
+		a.raise(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToMissingAuthorizingUser{
 			UserID:            c.UserID,
 			AuthorizingUserID: c.AuthorizingUserID,
 		})
@@ -89,7 +89,7 @@ func (a *resourceOwnerCommandAuthorization) AuthorizeUserToOnBoardClientApplicat
 	}
 
 	if !authorizingUser.IsAdministrator {
-		a.emit(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator{
+		a.raise(AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator{
 			UserID:            c.UserID,
 			AuthorizingUserID: c.AuthorizingUserID,
 		})
@@ -103,7 +103,7 @@ func (a *resourceOwnerCommandAuthorization) OnBoardClientApplication(c OnBoardCl
 	resourceOwner := a.loadResourceOwnerAggregate(c.UserID)
 
 	if !resourceOwner.IsOnBoarded {
-		a.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
+		a.raise(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
 			ClientID: c.ClientID,
 			UserID:   c.UserID,
 		})
@@ -111,7 +111,7 @@ func (a *resourceOwnerCommandAuthorization) OnBoardClientApplication(c OnBoardCl
 	}
 
 	if !resourceOwner.IsAuthorizedToOnboardClientApplications {
-		a.emit(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
+		a.raise(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
 			ClientID: c.ClientID,
 			UserID:   c.UserID,
 		})
@@ -121,13 +121,13 @@ func (a *resourceOwnerCommandAuthorization) OnBoardClientApplication(c OnBoardCl
 	return true
 }
 
-func (a *resourceOwnerCommandAuthorization) emit(events ...rangedb.Event) {
+func (a *resourceOwnerCommandAuthorization) raise(events ...rangedb.Event) {
 	a.pendingEvents = append(a.pendingEvents, events...)
 }
 
 func (a *resourceOwnerCommandAuthorization) loadResourceOwnerAggregate(userID string) *resourceOwner {
 	return newResourceOwner(
-		a.store.EventsByStreamStartingWith(context.Background(), 0, resourceOwnerStream(userID)),
+		a.store.EventsByStream(context.Background(), 0, resourceOwnerStream(userID)),
 		a.tokenGenerator,
 		a.clock,
 	)

@@ -3,7 +3,7 @@ package goauth2_test
 import (
 	"testing"
 
-	"github.com/inklabs/rangedb/provider/inmemorystore"
+	"github.com/inklabs/rangedb/rangedbtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,19 +23,17 @@ func TestAuthorizationCodeRefreshTokens(t *testing.T) {
 
 	t.Run("authorization code is associated with one refresh token via authorization code grant", func(t *testing.T) {
 		// Given
-		store := inmemorystore.New()
-		goauth2.BindEvents(store)
 		authorizationCodeRefreshTokens := goauth2.NewAuthorizationCodeRefreshTokens()
-		store.Subscribe(authorizationCodeRefreshTokens)
-
-		// When
-		require.NoError(t, store.Save(goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
+		record := rangedbtest.DummyRecordFromEvent(&goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			UserID:            userID,
 			RefreshToken:      refreshToken1,
 			Scope:             scope,
-		}, nil))
+		})
+
+		// When
+		authorizationCodeRefreshTokens.Accept(record)
 
 		// Then
 		tokens := authorizationCodeRefreshTokens.GetTokens(authorizationCode)
@@ -47,26 +45,25 @@ func TestAuthorizationCodeRefreshTokens(t *testing.T) {
 
 	t.Run("authorization code is associated with another refresh token via refresh token grant", func(t *testing.T) {
 		// Given
-		store := inmemorystore.New()
-		goauth2.BindEvents(store)
 		authorizationCodeRefreshTokens := goauth2.NewAuthorizationCodeRefreshTokens()
-		store.Subscribe(authorizationCodeRefreshTokens)
-
-		// When
-		require.NoError(t, store.Save(goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
+		record1 := rangedbtest.DummyRecordFromEvent(&goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			UserID:            userID,
 			RefreshToken:      refreshToken1,
 			Scope:             scope,
-		}, nil))
-		require.NoError(t, store.Save(goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
+		})
+		record2 := rangedbtest.DummyRecordFromEvent(&goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
 			RefreshToken:     refreshToken1,
 			UserID:           userID,
 			ClientID:         clientID,
 			NextRefreshToken: refreshToken2,
 			Scope:            scope,
-		}, nil))
+		})
+
+		// When
+		authorizationCodeRefreshTokens.Accept(record1)
+		authorizationCodeRefreshTokens.Accept(record2)
 
 		// Then
 		assert.Equal(t, []string{refreshToken1, refreshToken2}, authorizationCodeRefreshTokens.GetTokens(authorizationCode))
@@ -80,24 +77,23 @@ func TestAuthorizationCodeRefreshTokens(t *testing.T) {
 
 	t.Run("remove one revoked token to avoid memory leak", func(t *testing.T) {
 		// Given
-		store := inmemorystore.New()
-		goauth2.BindEvents(store)
 		authorizationCodeRefreshTokens := goauth2.NewAuthorizationCodeRefreshTokens()
-		store.Subscribe(authorizationCodeRefreshTokens)
-
-		// When
-		require.NoError(t, store.Save(goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
+		record1 := rangedbtest.DummyRecordFromEvent(&goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			UserID:            userID,
 			RefreshToken:      refreshToken1,
 			Scope:             scope,
-		}, nil))
-		require.NoError(t, store.Save(goauth2.RefreshTokenWasRevokedFromUser{
+		})
+		record2 := rangedbtest.DummyRecordFromEvent(&goauth2.RefreshTokenWasRevokedFromUser{
 			RefreshToken: refreshToken1,
 			UserID:       userID,
 			ClientID:     clientID,
-		}, nil))
+		})
+
+		// When
+		authorizationCodeRefreshTokens.Accept(record1)
+		authorizationCodeRefreshTokens.Accept(record2)
 
 		// Then
 		assert.Equal(t, []string(nil), authorizationCodeRefreshTokens.GetTokens(authorizationCode))
@@ -108,36 +104,37 @@ func TestAuthorizationCodeRefreshTokens(t *testing.T) {
 
 	t.Run("remove two revoked tokens to avoid memory leak", func(t *testing.T) {
 		// Given
-		store := inmemorystore.New()
-		goauth2.BindEvents(store)
 		authorizationCodeRefreshTokens := goauth2.NewAuthorizationCodeRefreshTokens()
-		store.Subscribe(authorizationCodeRefreshTokens)
-
-		// When
-		require.NoError(t, store.Save(goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
+		record1 := rangedbtest.DummyRecordFromEvent(&goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 			AuthorizationCode: authorizationCode,
 			ClientID:          clientID,
 			UserID:            userID,
 			RefreshToken:      refreshToken1,
 			Scope:             scope,
-		}, nil))
-		require.NoError(t, store.Save(goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
+		})
+		record2 := rangedbtest.DummyRecordFromEvent(&goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
 			RefreshToken:     refreshToken1,
 			UserID:           userID,
 			ClientID:         clientID,
 			NextRefreshToken: refreshToken2,
 			Scope:            scope,
-		}, nil))
-		require.NoError(t, store.Save(goauth2.RefreshTokenWasRevokedFromUser{
+		})
+		record3 := rangedbtest.DummyRecordFromEvent(&goauth2.RefreshTokenWasRevokedFromUser{
 			RefreshToken: refreshToken1,
 			UserID:       userID,
 			ClientID:     clientID,
-		}, nil))
-		require.NoError(t, store.Save(goauth2.RefreshTokenWasRevokedFromUser{
+		})
+		record4 := rangedbtest.DummyRecordFromEvent(&goauth2.RefreshTokenWasRevokedFromUser{
 			RefreshToken: refreshToken2,
 			UserID:       userID,
 			ClientID:     clientID,
-		}, nil))
+		})
+
+		// When
+		authorizationCodeRefreshTokens.Accept(record1)
+		authorizationCodeRefreshTokens.Accept(record2)
+		authorizationCodeRefreshTokens.Accept(record3)
+		authorizationCodeRefreshTokens.Accept(record4)
 
 		// Then
 		assert.Equal(t, []string(nil), authorizationCodeRefreshTokens.GetTokens(authorizationCode))
@@ -151,10 +148,7 @@ func TestAuthorizationCodeRefreshTokens(t *testing.T) {
 
 	t.Run("no events", func(t *testing.T) {
 		// Given
-		store := inmemorystore.New()
-		goauth2.BindEvents(store)
 		authorizationCodeRefreshTokens := goauth2.NewAuthorizationCodeRefreshTokens()
-		store.Subscribe(authorizationCodeRefreshTokens)
 
 		// When
 		tokens := authorizationCodeRefreshTokens.GetTokens(authorizationCode)

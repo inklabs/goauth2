@@ -1,6 +1,6 @@
 package goauth2
 
-//go:generate go run gen/eventgenerator/main.go -package goauth2 -id AuthorizationCode -methodName EventType -aggregateType authorization-code -inFile authorization_code_events.go -outFile authorization_code_events_gen.go
+//go:generate go run github.com/inklabs/rangedb/gen/eventgenerator -id AuthorizationCode -aggregateType authorization-code
 
 // RequestAccessTokenViaAuthorizationCodeGrant events
 type AuthorizationCodeWasIssuedToUser struct {

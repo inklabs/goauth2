@@ -1,6 +1,6 @@
 package goauth2
 
-//go:generate go run gen/eventgenerator/main.go -package goauth2 -id ClientID -methodName EventType -aggregateType client-application -inFile client_application_events.go -outFile client_application_events_gen.go
+//go:generate go run github.com/inklabs/rangedb/gen/eventgenerator -id ClientID -aggregateType client-application
 
 // OnBoardClientApplication Events
 type ClientApplicationWasOnBoarded struct {

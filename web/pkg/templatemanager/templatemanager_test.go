@@ -2,8 +2,9 @@ package templatemanager_test
 
 import (
 	"bytes"
+	"embed"
 	"fmt"
-	"net/http"
+	"io/fs"
 	"os"
 	"testing"
 
@@ -13,13 +14,17 @@ import (
 	"github.com/inklabs/goauth2/web/pkg/templatemanager"
 )
 
-var TemplateAssets = http.Dir("./testdata")
+//go:embed testdata
+var testDataAssets embed.FS
 
 func TestTemplateManager_RenderTemplate(t *testing.T) {
+	templateAssets, templateErr := fs.Sub(testDataAssets, "testdata")
+	require.NoError(t, templateErr)
+
 	t.Run("succeeds", func(t *testing.T) {
 		// Given
 		var buf bytes.Buffer
-		manager := templatemanager.New(TemplateAssets)
+		manager := templatemanager.New(templateAssets)
 
 		// When
 		err := manager.RenderTemplate(&buf, "hello.html", struct {
@@ -36,7 +41,7 @@ func TestTemplateManager_RenderTemplate(t *testing.T) {
 	t.Run("fails with template not found", func(t *testing.T) {
 		// Given
 		var buf bytes.Buffer
-		manager := templatemanager.New(TemplateAssets)
+		manager := templatemanager.New(templateAssets)
 
 		// When
 		err := manager.RenderTemplate(&buf, "not-found.html", nil)
@@ -64,7 +69,7 @@ func TestTemplateManager_RenderTemplate(t *testing.T) {
 	t.Run("fails with invalid template", func(t *testing.T) {
 		// Given
 		var buf bytes.Buffer
-		manager := templatemanager.New(TemplateAssets)
+		manager := templatemanager.New(templateAssets)
 
 		// When
 		err := manager.RenderTemplate(&buf, "invalid-hello.html", nil)
@@ -76,7 +81,7 @@ func TestTemplateManager_RenderTemplate(t *testing.T) {
 
 type fileSystemWithFailingFileReader struct{}
 
-func (f fileSystemWithFailingFileReader) Open(_ string) (http.File, error) {
+func (f fileSystemWithFailingFileReader) Open(_ string) (fs.File, error) {
 	return failReader{}, nil
 }
 
