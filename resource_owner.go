@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	authorizationCodeLifetime = 10 * time.Minute
-	ropcGrantLifetime         = 1 * time.Hour
+	authorizationCodeLifetime      = 10 * time.Minute
+	authorizationCodeGrantLifetime = 1 * time.Hour
+	ropcGrantLifetime              = 1 * time.Hour
 )
 
 func ResourceOwnerCommandTypes() []string {

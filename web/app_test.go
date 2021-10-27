@@ -393,7 +393,7 @@ func Test_TokenEndpoint(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-			expiresAt := 1574371565
+			expiresAt := issueTimePlus1Hour.Unix()
 			expectedBody := fmt.Sprintf(`{
 				"access_token": "%s",
 				"expires_at": %d,
@@ -595,6 +595,7 @@ func Test_TokenEndpoint(t *testing.T) {
 					UserID:            userID,
 					ClientID:          clientID,
 					Scope:             scope,
+					ExpiresAt:         issueTimePlus1Hour.Unix(),
 				},
 			)
 

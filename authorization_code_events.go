@@ -15,6 +15,7 @@ type AccessTokenWasIssuedToUserViaAuthorizationCodeGrant struct {
 	UserID            string `json:"userID"`
 	ClientID          string `json:"clientID"`
 	Scope             string `json:"scope"`
+	ExpiresAt         int64  `json:"expiresAt"`
 }
 type RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant struct {
 	AuthorizationCode string `json:"authorizationCode"`

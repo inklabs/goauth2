@@ -1085,7 +1085,7 @@ func Test_RequestAuthorizationCodeViaAuthorizationCodeGrant(t *testing.T) {
 func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 	t.Run("issues access and refresh token to user", goauth2TestCase(
 		goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
-		goauth2.WithClock(seededclock.New(issueTimePlus9Minutes)),
+		goauth2.WithClock(seededclock.New(issueTime)),
 	).
 		Given(
 			goauth2.ClientApplicationWasOnBoarded{
@@ -1103,7 +1103,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 				AuthorizationCode: authorizationCode,
 				UserID:            userID,
 				ClientID:          clientID,
-				ExpiresAt:         issueTimePlus10Minutes.Unix(),
+				ExpiresAt:         issueTime.Unix(),
 				Scope:             scope,
 			},
 		).
@@ -1119,6 +1119,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 				UserID:            userID,
 				ClientID:          clientID,
 				Scope:             scope,
+				ExpiresAt:         issueTimePlus1Hour.Unix(),
 			},
 			goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 				AuthorizationCode: authorizationCode,
@@ -1332,6 +1333,7 @@ func Test_RequestAccessTokenViaAuthorizationCodeGrant(t *testing.T) {
 				UserID:            userID,
 				ClientID:          clientID,
 				Scope:             scope,
+				ExpiresAt:         issueTimePlus1Hour.Unix(),
 			},
 		).
 		When(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{

@@ -106,6 +106,7 @@ func (a *authorizationCode) RequestAccessTokenViaAuthorizationCodeGrant(c Reques
 	}
 
 	refreshToken := a.tokenGenerator.New()
+	expiresAt := a.clock.Now().Add(authorizationCodeGrantLifetime).Unix()
 
 	a.raise(
 		AccessTokenWasIssuedToUserViaAuthorizationCodeGrant{
@@ -113,6 +114,7 @@ func (a *authorizationCode) RequestAccessTokenViaAuthorizationCodeGrant(c Reques
 			UserID:            a.UserID,
 			ClientID:          c.ClientID,
 			Scope:             a.Scope,
+			ExpiresAt:         expiresAt,
 		},
 		RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant{
 			AuthorizationCode: c.AuthorizationCode,

@@ -431,8 +431,6 @@ func (a *app) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	scope := accessTokenIssuedEvent.Scope
-
 	var refreshToken string
 	var refreshTokenIssuedEvent goauth2.RefreshTokenWasIssuedToUserViaAuthorizationCodeGrant
 	if events.Get(&refreshTokenIssuedEvent) {
@@ -441,9 +439,9 @@ func (a *app) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *http.R
 
 	writeJsonResponse(w, AccessTokenResponse{
 		AccessToken:  accessTokenTODO,
-		ExpiresAt:    expiresAtTODO,
+		ExpiresAt:    accessTokenIssuedEvent.ExpiresAt,
 		TokenType:    "Bearer",
-		Scope:        scope,
+		Scope:        accessTokenIssuedEvent.Scope,
 		RefreshToken: refreshToken,
 	})
 	return
