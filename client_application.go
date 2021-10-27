@@ -2,9 +2,13 @@ package goauth2
 
 import (
 	"net/url"
+	"time"
 
 	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/pkg/clock"
 )
+
+const clientApplicationGrantLifetime = 1 * time.Hour
 
 func ClientApplicationCommandTypes() []string {
 	return []string{
@@ -19,10 +23,13 @@ type clientApplication struct {
 	ClientSecret  string
 	RedirectURI   string
 	pendingEvents []rangedb.Event
+	clock         clock.Clock
 }
 
-func newClientApplication(iter rangedb.RecordIterator) *clientApplication {
-	aggregate := &clientApplication{}
+func newClientApplication(iter rangedb.RecordIterator, clock clock.Clock) *clientApplication {
+	aggregate := &clientApplication{
+		clock: clock,
+	}
 
 	for iter.Next() {
 		if event, ok := iter.Record().Data.(rangedb.Event); ok {
@@ -101,8 +108,12 @@ func (a *clientApplication) RequestAccessTokenViaClientCredentialsGrant(c Reques
 		return
 	}
 
+	expiresAt := a.clock.Now().Add(clientApplicationGrantLifetime).Unix()
+
 	a.raise(AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{
-		ClientID: c.ClientID,
+		ClientID:  c.ClientID,
+		ExpiresAt: expiresAt,
+		Scope:     c.Scope,
 	})
 }
 

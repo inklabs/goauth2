@@ -4,24 +4,30 @@ import (
 	"context"
 
 	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/pkg/clock"
 )
 
 type clientApplicationCommandAuthorization struct {
 	store         rangedb.Store
+	clock         clock.Clock
 	pendingEvents []rangedb.Event
 }
 
-func newClientApplicationCommandAuthorization(store rangedb.Store) *clientApplicationCommandAuthorization {
+func newClientApplicationCommandAuthorization(
+	store rangedb.Store,
+	clock clock.Clock,
+) *clientApplicationCommandAuthorization {
 	return &clientApplicationCommandAuthorization{
 		store: store,
+		clock: clock,
 	}
 }
 
-func (h *clientApplicationCommandAuthorization) GetPendingEvents() []rangedb.Event {
-	return h.pendingEvents
+func (a *clientApplicationCommandAuthorization) GetPendingEvents() []rangedb.Event {
+	return a.pendingEvents
 }
 
-func (h *clientApplicationCommandAuthorization) CommandTypes() []string {
+func (a *clientApplicationCommandAuthorization) CommandTypes() []string {
 	return []string{
 		RequestAccessTokenViaImplicitGrant{}.CommandType(),
 		RequestAccessTokenViaROPCGrant{}.CommandType(),
@@ -31,34 +37,34 @@ func (h *clientApplicationCommandAuthorization) CommandTypes() []string {
 	}
 }
 
-func (h *clientApplicationCommandAuthorization) Handle(command Command) bool {
+func (a *clientApplicationCommandAuthorization) Handle(command Command) bool {
 	switch c := command.(type) {
 
 	case RequestAccessTokenViaImplicitGrant:
-		return h.RequestAccessTokenViaImplicitGrant(c)
+		return a.RequestAccessTokenViaImplicitGrant(c)
 
 	case RequestAccessTokenViaROPCGrant:
-		return h.RequestAccessTokenViaROPCGrant(c)
+		return a.RequestAccessTokenViaROPCGrant(c)
 
 	case RequestAccessTokenViaRefreshTokenGrant:
-		return h.RequestAccessTokenViaRefreshTokenGrant(c)
+		return a.RequestAccessTokenViaRefreshTokenGrant(c)
 
 	case RequestAuthorizationCodeViaAuthorizationCodeGrant:
-		return h.RequestAuthorizationCodeViaAuthorizationCodeGrant(c)
+		return a.RequestAuthorizationCodeViaAuthorizationCodeGrant(c)
 
 	case RequestAccessTokenViaAuthorizationCodeGrant:
-		return h.RequestAccessTokenViaAuthorizationCodeGrant(c)
+		return a.RequestAccessTokenViaAuthorizationCodeGrant(c)
 
 	}
 
 	return true
 }
 
-func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaImplicitGrant(c RequestAccessTokenViaImplicitGrant) bool {
-	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+func (a *clientApplicationCommandAuthorization) RequestAccessTokenViaImplicitGrant(c RequestAccessTokenViaImplicitGrant) bool {
+	clientApplication := a.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.raise(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationID{
+		a.raise(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationID{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -66,7 +72,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaImplicitGra
 	}
 
 	if clientApplication.RedirectURI != c.RedirectURI {
-		h.raise(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
+		a.raise(RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 			UserID:      c.UserID,
 			ClientID:    c.ClientID,
 			RedirectURI: c.RedirectURI,
@@ -77,11 +83,11 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaImplicitGra
 	return true
 }
 
-func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaROPCGrant(c RequestAccessTokenViaROPCGrant) bool {
-	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+func (a *clientApplicationCommandAuthorization) RequestAccessTokenViaROPCGrant(c RequestAccessTokenViaROPCGrant) bool {
+	clientApplication := a.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.raise(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
+		a.raise(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -89,7 +95,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaROPCGrant(c
 	}
 
 	if clientApplication.ClientSecret != c.ClientSecret {
-		h.raise(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
+		a.raise(RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCredentials{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -99,11 +105,11 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaROPCGrant(c
 	return true
 }
 
-func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaRefreshTokenGrant(c RequestAccessTokenViaRefreshTokenGrant) bool {
-	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+func (a *clientApplicationCommandAuthorization) RequestAccessTokenViaRefreshTokenGrant(c RequestAccessTokenViaRefreshTokenGrant) bool {
+	clientApplication := a.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
+		a.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
 			RefreshToken: c.RefreshToken,
 			ClientID:     c.ClientID,
 		})
@@ -111,7 +117,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaRefreshToke
 	}
 
 	if clientApplication.ClientSecret != c.ClientSecret {
-		h.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
+		a.raise(RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidClientApplicationCredentials{
 			RefreshToken: c.RefreshToken,
 			ClientID:     c.ClientID,
 		})
@@ -121,11 +127,11 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaRefreshToke
 	return true
 }
 
-func (h *clientApplicationCommandAuthorization) RequestAuthorizationCodeViaAuthorizationCodeGrant(c RequestAuthorizationCodeViaAuthorizationCodeGrant) bool {
-	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+func (a *clientApplicationCommandAuthorization) RequestAuthorizationCodeViaAuthorizationCodeGrant(c RequestAuthorizationCodeViaAuthorizationCodeGrant) bool {
+	clientApplication := a.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.raise(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
+		a.raise(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
 			UserID:   c.UserID,
 			ClientID: c.ClientID,
 		})
@@ -133,7 +139,7 @@ func (h *clientApplicationCommandAuthorization) RequestAuthorizationCodeViaAutho
 	}
 
 	if clientApplication.RedirectURI != c.RedirectURI {
-		h.raise(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
+		a.raise(RequestAuthorizationCodeViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 			UserID:      c.UserID,
 			ClientID:    c.ClientID,
 			RedirectURI: c.RedirectURI,
@@ -144,11 +150,11 @@ func (h *clientApplicationCommandAuthorization) RequestAuthorizationCodeViaAutho
 	return true
 }
 
-func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaAuthorizationCodeGrant(c RequestAccessTokenViaAuthorizationCodeGrant) bool {
-	clientApplication := h.loadClientApplicationAggregate(c.ClientID)
+func (a *clientApplicationCommandAuthorization) RequestAccessTokenViaAuthorizationCodeGrant(c RequestAccessTokenViaAuthorizationCodeGrant) bool {
+	clientApplication := a.loadClientApplicationAggregate(c.ClientID)
 
 	if !clientApplication.IsOnBoarded {
-		h.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
+		a.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationID{
 			AuthorizationCode: c.AuthorizationCode,
 			ClientID:          c.ClientID,
 		})
@@ -156,7 +162,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaAuthorizati
 	}
 
 	if clientApplication.ClientSecret != c.ClientSecret {
-		h.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationSecret{
+		a.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationSecret{
 			AuthorizationCode: c.AuthorizationCode,
 			ClientID:          c.ClientID,
 		})
@@ -164,7 +170,7 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaAuthorizati
 	}
 
 	if clientApplication.RedirectURI != c.RedirectURI {
-		h.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
+		a.raise(RequestAccessTokenViaAuthorizationCodeGrantWasRejectedDueToInvalidClientApplicationRedirectURI{
 			AuthorizationCode: c.AuthorizationCode,
 			ClientID:          c.ClientID,
 			RedirectURI:       c.RedirectURI,
@@ -175,11 +181,14 @@ func (h *clientApplicationCommandAuthorization) RequestAccessTokenViaAuthorizati
 	return true
 }
 
-func (h *clientApplicationCommandAuthorization) loadClientApplicationAggregate(clientID string) *clientApplication {
+func (a *clientApplicationCommandAuthorization) loadClientApplicationAggregate(clientID string) *clientApplication {
 	ctx := context.Background()
-	return newClientApplication(h.store.EventsByStream(ctx, 0, clientApplicationStream(clientID)))
+	return newClientApplication(
+		a.store.EventsByStream(ctx, 0, clientApplicationStream(clientID)),
+		a.clock,
+	)
 }
 
-func (h *clientApplicationCommandAuthorization) raise(events ...rangedb.Event) {
-	h.pendingEvents = append(h.pendingEvents, events...)
+func (a *clientApplicationCommandAuthorization) raise(events ...rangedb.Event) {
+	a.pendingEvents = append(a.pendingEvents, events...)
 }

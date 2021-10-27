@@ -619,7 +619,9 @@ func Test_RequestAccessTokenViaROPCGrant(t *testing.T) {
 }
 
 func Test_RequestAccessTokenViaClientCredentialsGrant(t *testing.T) {
-	t.Run("issue access token for on-boarded client application", goauth2TestCase().
+	t.Run("issue access token for on-boarded client application", goauth2TestCase(
+		goauth2.WithClock(seededclock.New(issueTime)),
+	).
 		Given(goauth2.ClientApplicationWasOnBoarded{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
@@ -629,9 +631,12 @@ func Test_RequestAccessTokenViaClientCredentialsGrant(t *testing.T) {
 		When(goauth2.RequestAccessTokenViaClientCredentialsGrant{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
+			Scope:        scope,
 		}).
 		Then(goauth2.AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{
-			ClientID: clientID,
+			ClientID:  clientID,
+			ExpiresAt: issueTimePlus1Hour.Unix(),
+			Scope:     scope,
 		}))
 
 	t.Run("rejected due to missing client application", goauth2TestCase().
@@ -639,6 +644,7 @@ func Test_RequestAccessTokenViaClientCredentialsGrant(t *testing.T) {
 		When(goauth2.RequestAccessTokenViaClientCredentialsGrant{
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
+			Scope:        scope,
 		}).
 		Then(goauth2.RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationID{
 			ClientID: clientID,
@@ -654,6 +660,7 @@ func Test_RequestAccessTokenViaClientCredentialsGrant(t *testing.T) {
 		When(goauth2.RequestAccessTokenViaClientCredentialsGrant{
 			ClientID:     clientID,
 			ClientSecret: "wrong-secret",
+			Scope:        scope,
 		}).
 		Then(goauth2.RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationSecret{
 			ClientID: clientID,

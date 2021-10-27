@@ -9,8 +9,10 @@ import (
 	"github.com/inklabs/goauth2/pkg/securepass"
 )
 
-const authorizationCodeLifetime = 10 * time.Minute
-const ropcGrantLifetime = 1 * time.Hour
+const (
+	authorizationCodeLifetime = 10 * time.Minute
+	ropcGrantLifetime         = 1 * time.Hour
+)
 
 func ResourceOwnerCommandTypes() []string {
 	return []string{

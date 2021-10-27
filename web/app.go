@@ -389,17 +389,19 @@ func (a *app) handleClientCredentialsGrant(w http.ResponseWriter, clientID, clie
 	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
+		Scope:        scope,
 	}))
-	if !events.Contains(&goauth2.AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant{}) {
+	var accessTokenIssuedEvent goauth2.AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant
+	if !events.Get(&accessTokenIssuedEvent) {
 		writeInvalidClientResponse(w)
 		return
 	}
 
 	writeJsonResponse(w, AccessTokenResponse{
 		AccessToken: accessTokenTODO,
-		ExpiresAt:   expiresAtTODO,
+		ExpiresAt:   accessTokenIssuedEvent.ExpiresAt,
 		TokenType:   "Bearer",
-		Scope:       scope,
+		Scope:       accessTokenIssuedEvent.Scope,
 	})
 	return
 }

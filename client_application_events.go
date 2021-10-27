@@ -24,7 +24,9 @@ type OnBoardClientApplicationWasRejectedDueToInvalidRedirectURI struct {
 
 // RequestAccessTokenViaClientCredentialsGrant Events
 type AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant struct {
-	ClientID string `json:"clientID"`
+	ClientID  string `json:"clientID"`
+	ExpiresAt int64  `json:"expiresAt"`
+	Scope     string `json:"scope"`
 }
 type RequestAccessTokenViaClientCredentialsGrantWasRejectedDueToInvalidClientApplicationID struct {
 	ClientID string `json:"clientID"`

@@ -11,4 +11,5 @@ type OnBoardClientApplication struct {
 type RequestAccessTokenViaClientCredentialsGrant struct {
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
+	Scope        string `json:"scope"`
 }

@@ -72,7 +72,7 @@ func New(options ...Option) (*App, error) {
 
 	BindEvents(app.store)
 
-	app.registerPreCommandHandler(newClientApplicationCommandAuthorization(app.store))
+	app.registerPreCommandHandler(newClientApplicationCommandAuthorization(app.store, app.clock))
 	app.registerPreCommandHandler(newResourceOwnerCommandAuthorization(app.store, app.tokenGenerator, app.clock))
 
 	app.registerCommandHandler(ResourceOwnerCommandTypes(), app.newResourceOwnerAggregate)
@@ -141,7 +141,7 @@ func (a *App) Dispatch(command Command) []rangedb.Event {
 }
 
 func (a *App) newClientApplicationAggregate(command Command) CommandHandler {
-	return newClientApplication(a.eventsByStream(rangedb.GetEventStream(command)))
+	return newClientApplication(a.eventsByStream(rangedb.GetEventStream(command)), a.clock)
 }
 
 func (a *App) newResourceOwnerAggregate(command Command) CommandHandler {

@@ -153,7 +153,10 @@ func Test_TokenEndpoint(t *testing.T) {
 				UserID:       adminUserID,
 			},
 		)
-		goauth2App, err := goauth2.New(goauth2.WithStore(eventStore))
+		goauth2App, err := goauth2.New(
+			goauth2.WithStore(eventStore),
+			goauth2.WithClock(seededclock.New(issueTime)),
+		)
 		require.NoError(t, err)
 		app, err := web.New(
 			web.WithGoauth2App(goauth2App),
@@ -169,7 +172,7 @@ func Test_TokenEndpoint(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
 			r.SetBasicAuth(clientID, clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-			expiresAt := 1574371565
+			expiresAt := issueTimePlus1Hour.Unix()
 			expectedBody := fmt.Sprintf(`{
 				"access_token": "%s",
 				"expires_at": %d,
