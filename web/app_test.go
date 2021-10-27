@@ -166,7 +166,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		params.Set("grant_type", clientCredentialsGrant)
 		params.Set("scope", scope)
 
-		t.Run("issues access and refresh token", func(t *testing.T) {
+		t.Run("issues access token", func(t *testing.T) {
 			// Given
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
@@ -628,11 +628,12 @@ func Test_TokenEndpoint(t *testing.T) {
 	})
 
 	t.Run("Refresh Token Grant Type", func(t *testing.T) {
-		t.Run("issues access and refresh token from refresh token request", func(t *testing.T) {
+		t.Run("issues access and refresh token to user from refresh token request", func(t *testing.T) {
 			// Given
 			goAuth2App, err := goauth2.New(
 				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken, nextRefreshToken)),
+				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
 			app, err := web.New(web.WithGoauth2App(goAuth2App))
@@ -656,11 +657,12 @@ func Test_TokenEndpoint(t *testing.T) {
 			refreshParams := &url.Values{}
 			refreshParams.Set("grant_type", RefreshTokenGrant)
 			refreshParams.Set("refresh_token", accessTokenResponse.RefreshToken)
+			refreshParams.Set("scope", accessTokenResponse.Scope)
 			w = httptest.NewRecorder()
 			r = httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(refreshParams.Encode()))
 			r.SetBasicAuth(clientID, clientSecret)
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-			expiresAt := 1574371565
+			expiresAt := issueTimePlus1Hour.Unix()
 			expectedBody := fmt.Sprintf(`{
 				"access_token": "%s",
 				"expires_at": %d,

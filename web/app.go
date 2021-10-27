@@ -325,18 +325,24 @@ func (a *app) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, cl
 		Scope:        scope,
 	}))
 
-	var issuedEvent goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant
-	if !events.Get(&issuedEvent) {
+	var accessTokenEvent goauth2.AccessTokenWasIssuedToUserViaRefreshTokenGrant
+	if !events.Get(&accessTokenEvent) {
 		writeInvalidGrantResponse(w)
 		return
 	}
 
+	var nextRefreshToken string
+	var refreshTokenEvent goauth2.RefreshTokenWasIssuedToUserViaRefreshTokenGrant
+	if events.Get(&refreshTokenEvent) {
+		nextRefreshToken = refreshTokenEvent.NextRefreshToken
+	}
+
 	writeJsonResponse(w, AccessTokenResponse{
 		AccessToken:  "61272356284f4340b2b1f3f1400ad4d9",
-		ExpiresAt:    expiresAtTODO,
+		ExpiresAt:    accessTokenEvent.ExpiresAt,
 		TokenType:    "Bearer",
-		RefreshToken: issuedEvent.NextRefreshToken,
-		Scope:        issuedEvent.Scope,
+		RefreshToken: nextRefreshToken,
+		Scope:        accessTokenEvent.Scope,
 	})
 	return
 }

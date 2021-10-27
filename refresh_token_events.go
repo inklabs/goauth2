@@ -9,10 +9,6 @@ type RefreshTokenWasIssuedToUser struct {
 	ClientID     string `json:"clientID"`
 	Scope        string `json:"scope"`
 }
-type RefreshTokenWasIssuedToClientApplication struct {
-	RefreshToken string `json:"refreshToken"`
-	ClientID     string `json:"clientID"`
-}
 type RefreshTokenWasRevokedFromUser struct {
 	RefreshToken string `json:"refreshToken"`
 	UserID       string `json:"userID"`
@@ -22,10 +18,8 @@ type AccessTokenWasIssuedToUserViaRefreshTokenGrant struct {
 	RefreshToken string `json:"refreshToken"`
 	UserID       string `json:"userID"`
 	ClientID     string `json:"clientID"`
-}
-type AccessTokenWasIssuedToClientApplicationViaRefreshTokenGrant struct {
-	RefreshToken string `json:"refreshToken"`
-	ClientID     string `json:"clientID"`
+	Scope        string `json:"scope"`
+	ExpiresAt    int64  `json:"expiresAt"`
 }
 type RefreshTokenWasIssuedToUserViaRefreshTokenGrant struct {
 	RefreshToken     string `json:"refreshToken"`
@@ -33,11 +27,6 @@ type RefreshTokenWasIssuedToUserViaRefreshTokenGrant struct {
 	ClientID         string `json:"clientID"`
 	NextRefreshToken string `json:"nextRefreshToken"`
 	Scope            string `json:"scope"`
-}
-type RefreshTokenWasIssuedToClientApplicationViaRefreshTokenGrant struct {
-	RefreshToken     string `json:"refreshToken"`
-	ClientID         string `json:"clientID"`
-	NextRefreshToken string `json:"nextRefreshToken"`
 }
 type RequestAccessTokenViaRefreshTokenGrantWasRejectedDueToInvalidRefreshToken struct {
 	RefreshToken string `json:"refreshToken"`

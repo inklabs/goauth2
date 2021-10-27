@@ -164,6 +164,7 @@ func (a *App) newRefreshTokenAggregate(command Command) CommandHandler {
 	return newRefreshToken(
 		a.eventsByStream(rangedb.GetEventStream(command)),
 		a.tokenGenerator,
+		a.clock,
 	)
 }
 

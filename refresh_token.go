@@ -1,8 +1,13 @@
 package goauth2
 
 import (
+	"time"
+
 	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/pkg/clock"
 )
+
+const refreshTokenGrantLifetime = 1 * time.Hour
 
 func RefreshTokenCommandTypes() []string {
 	return []string{
@@ -13,23 +18,23 @@ func RefreshTokenCommandTypes() []string {
 }
 
 type refreshToken struct {
-	tokenGenerator         TokenGenerator
-	Token                  string
-	Scope                  string
-	PendingEvents          []rangedb.Event
-	Username               string
-	IsLoaded               bool
-	HasBeenPreviouslyUsed  bool
-	HasBeenRevoked         bool
-	IsForUser              bool
-	UserID                 string
-	IsForClientApplication bool
-	ClientID               string
+	tokenGenerator        TokenGenerator
+	clock                 clock.Clock
+	Token                 string
+	Scope                 string
+	PendingEvents         []rangedb.Event
+	Username              string
+	IsLoaded              bool
+	HasBeenPreviouslyUsed bool
+	HasBeenRevoked        bool
+	UserID                string
+	ClientID              string
 }
 
-func newRefreshToken(iter rangedb.RecordIterator, generator TokenGenerator) *refreshToken {
+func newRefreshToken(iter rangedb.RecordIterator, generator TokenGenerator, clock clock.Clock) *refreshToken {
 	aggregate := &refreshToken{
 		tokenGenerator: generator,
+		clock:          clock,
 	}
 
 	for iter.Next() {
@@ -46,14 +51,8 @@ func (a *refreshToken) apply(event rangedb.Event) {
 
 	case *RefreshTokenWasIssuedToUser:
 		a.IsLoaded = true
-		a.IsForUser = true
 		a.UserID = e.UserID
 		a.Scope = e.Scope
-
-	case *RefreshTokenWasIssuedToClientApplication:
-		a.IsLoaded = true
-		a.IsForClientApplication = true
-		a.ClientID = e.ClientID
 
 	case *RefreshTokenWasIssuedToUserViaRefreshTokenGrant:
 		a.HasBeenPreviouslyUsed = true
@@ -126,35 +125,24 @@ func (a *refreshToken) RequestAccessTokenViaRefreshTokenGrant(c RequestAccessTok
 	}
 
 	nextRefreshToken := a.tokenGenerator.New()
+	expiresAt := a.clock.Now().Add(refreshTokenGrantLifetime).Unix()
 
-	if a.IsForUser {
-		a.raise(
-			AccessTokenWasIssuedToUserViaRefreshTokenGrant{
-				RefreshToken: c.RefreshToken,
-				UserID:       a.UserID,
-				ClientID:     c.ClientID,
-			},
-			RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
-				RefreshToken:     c.RefreshToken,
-				UserID:           a.UserID,
-				ClientID:         c.ClientID,
-				NextRefreshToken: nextRefreshToken,
-				Scope:            a.Scope,
-			},
-		)
-	} else if a.IsForClientApplication {
-		a.raise(
-			AccessTokenWasIssuedToClientApplicationViaRefreshTokenGrant{
-				RefreshToken: c.RefreshToken,
-				ClientID:     c.ClientID,
-			},
-			RefreshTokenWasIssuedToClientApplicationViaRefreshTokenGrant{
-				RefreshToken:     c.RefreshToken,
-				ClientID:         a.ClientID,
-				NextRefreshToken: nextRefreshToken,
-			},
-		)
-	}
+	a.raise(
+		AccessTokenWasIssuedToUserViaRefreshTokenGrant{
+			RefreshToken: c.RefreshToken,
+			UserID:       a.UserID,
+			ClientID:     c.ClientID,
+			Scope:        c.Scope,
+			ExpiresAt:    expiresAt,
+		},
+		RefreshTokenWasIssuedToUserViaRefreshTokenGrant{
+			RefreshToken:     c.RefreshToken,
+			UserID:           a.UserID,
+			ClientID:         c.ClientID,
+			NextRefreshToken: nextRefreshToken,
+			Scope:            c.Scope,
+		},
+	)
 }
 
 func (a *refreshToken) IssueRefreshTokenToUser(c IssueRefreshTokenToUser) {
