@@ -15,6 +15,10 @@ import (
 // Version for Go OAuth2.
 const Version = "0.1.0-dev"
 
+type TokenGenerator interface {
+	New() string
+}
+
 // App is the OAuth2 CQRS application.
 type App struct {
 	clock                   clock.Clock

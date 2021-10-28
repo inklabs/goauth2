@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
@@ -21,31 +22,38 @@ func main() {
 	fmt.Println("OAuth2 Server")
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
-	port := flag.Int("port", 8080, "port")
+	requestedOauth2Port := flag.Uint("port", 0, "port")
+	flag.Parse()
+
+	oAuth2Listener, err := getListener(*requestedOauth2Port)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	store := inmemorystore.New(
 		inmemorystore.WithLogger(log.New(os.Stderr, "", 0)),
 	)
-	goauth2App, err := goauth2.New(goauth2.WithStore(store))
+	goAuth2App, err := goauth2.New(goauth2.WithStore(store))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	webApp, err := web.New(
-		web.WithGoauth2App(goauth2App),
+	goAuth2webApp, err := web.New(
+		web.WithGoauth2App(goAuth2App),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = initDB(goauth2App, store)
+	err = initDB(goAuth2App, store)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	go func() {
-		rangeDBPort := 8081
-		baseUri := fmt.Sprintf("http://0.0.0.0:%d/api", rangeDBPort)
+		rangeDBListener, err := getListener(0)
+		rangeDBPort := rangeDBListener.Addr().(*net.TCPAddr).Port
+		baseUri := fmt.Sprintf("%s/api", rangeDBListener.Addr().String())
 		api, err := rangedbapi.New(rangedbapi.WithStore(store), rangedbapi.WithBaseUri(baseUri))
 		if err != nil {
 			log.Fatal(err)
@@ -58,11 +66,21 @@ func main() {
 		server.Handle("/api/", http.StripPrefix("/api", api))
 
 		fmt.Printf("RangeDB UI: http://0.0.0.0:%d/\n", rangeDBPort)
-		log.Fatal(http.ListenAndServe(":8081", server))
+		log.Fatal(http.Serve(rangeDBListener, server))
 	}()
 
-	fmt.Printf("Go OAuth2 Server: http://0.0.0.0:%d/\n", *port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), webApp))
+	goAuth2Port := oAuth2Listener.Addr().(*net.TCPAddr).Port
+	fmt.Printf("Go OAuth2 Server: http://0.0.0.0:%d/login\n", goAuth2Port)
+	log.Fatal(http.Serve(oAuth2Listener, goAuth2webApp))
+}
+
+func getListener(port uint) (net.Listener, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return nil, err
+	}
+
+	return listener, nil
 }
 
 func initDB(goauth2App *goauth2.App, store rangedb.Store) error {
@@ -123,13 +141,15 @@ func initDB(goauth2App *goauth2.App, store rangedb.Store) error {
 	fmt.Println(`curl localhost:8080/token \
         -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
         -d "grant_type=refresh_token" \
-        -d "refresh_token=3cc6fa5b470642b081e3ebd29aa9b43c" -s | jq`)
+        -d "refresh_token=3cc6fa5b470642b081e3ebd29aa9b43c" \
+        -d "scope=read_write" -s | jq`)
 
 	fmt.Println("# Refresh Token x2")
 	fmt.Println(`curl localhost:8080/token \
         -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
         -d "grant_type=refresh_token" \
-        -d "refresh_token=93b5e8869a954faaa6c6ba73dfea1a09" -s | jq`)
+        -d "refresh_token=93b5e8869a954faaa6c6ba73dfea1a09" \
+        -d "scope=read_write" -s | jq`)
 
 	fmt.Println("# Authorization Code")
 	fmt.Println(`http://0.0.0.0:8080/login?client_id=8895e1e5f06644ebb41c26ea5740b246&redirect_uri=https://example.com/oauth2/callback&response_type=code&state=somestate&scope=read_write`)
