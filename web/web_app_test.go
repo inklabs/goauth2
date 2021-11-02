@@ -86,7 +86,7 @@ func Test_Login(t *testing.T) {
 	t.Run("fails to serve login form", func(t *testing.T) {
 		// Given
 		app, err := web.New(
-			web.WithTemplateFilesystem(failingFilesystem{}),
+			web.WithTemplateFS(failingFilesystem{}),
 		)
 		require.NoError(t, err)
 		params := getAuthorizeParams()
@@ -125,7 +125,7 @@ func TestListClientApplications(t *testing.T) {
 	goauth2App, err := goauth2.New(goauth2.WithStore(eventStore))
 	require.NoError(t, err)
 	app, err := web.New(
-		web.WithGoauth2App(goauth2App),
+		web.WithGoAuth2App(goauth2App),
 	)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
@@ -159,7 +159,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		)
 		require.NoError(t, err)
 		app, err := web.New(
-			web.WithGoauth2App(goauth2App),
+			web.WithGoAuth2App(goauth2App),
 		)
 		require.NoError(t, err)
 		params := &url.Values{}
@@ -253,7 +253,7 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goAuth2App))
+			app, err := web.New(web.WithGoAuth2App(goAuth2App))
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
@@ -284,7 +284,7 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goAuth2App))
+			app, err := web.New(web.WithGoAuth2App(goAuth2App))
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
@@ -307,7 +307,7 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goAuth2App))
+			app, err := web.New(web.WithGoAuth2App(goAuth2App))
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
@@ -330,7 +330,7 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goAuth2App))
+			app, err := web.New(web.WithGoAuth2App(goAuth2App))
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
@@ -358,7 +358,7 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goAuth2App))
+			app, err := web.New(web.WithGoAuth2App(goAuth2App))
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
@@ -553,7 +553,7 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", AuthorizationCodeGrant)
@@ -605,7 +605,7 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", AuthorizationCodeGrant)
@@ -636,7 +636,7 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goAuth2App))
+			app, err := web.New(web.WithGoAuth2App(goAuth2App))
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
@@ -687,7 +687,7 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goAuth2App))
+			app, err := web.New(web.WithGoAuth2App(goAuth2App))
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
@@ -773,7 +773,7 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 
@@ -819,7 +819,7 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("client_id", "invalid-client-id")
@@ -844,7 +844,7 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("redirect_uri", "https://wrong.example.com")
@@ -869,7 +869,7 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("username", "wrong@example.com")
@@ -893,7 +893,7 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("password", "wrong-pass")
@@ -920,7 +920,7 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
@@ -947,7 +947,7 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
@@ -973,7 +973,7 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
@@ -1017,7 +1017,7 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoauth2App(goauth2App))
+			app, err := web.New(web.WithGoAuth2App(goauth2App))
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
@@ -1176,7 +1176,7 @@ func getAppWithAuthorizationCodeIssued(t *testing.T, options ...goauth2.Option) 
 	goauth2App, err := goauth2.New(options...)
 	require.NoError(t, err)
 
-	app, err := web.New(web.WithGoauth2App(goauth2App))
+	app, err := web.New(web.WithGoAuth2App(goauth2App))
 	require.NoError(t, err)
 
 	return app

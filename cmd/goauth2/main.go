@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"text/template"
 
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/rangedbapi"
@@ -23,6 +24,7 @@ func main() {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
 	requestedOauth2Port := flag.Uint("port", 0, "port")
+	templatesPath := flag.String("templates", "", "optional templates path")
 	flag.Parse()
 
 	oAuth2Listener, err := getListener(*requestedOauth2Port)
@@ -38,14 +40,27 @@ func main() {
 		log.Fatal(err)
 	}
 
-	goAuth2webApp, err := web.New(
-		web.WithGoauth2App(goAuth2App),
-	)
+	goAuth2WebAppOptions := []web.Option{
+		web.WithGoAuth2App(goAuth2App),
+		web.WithHost(oAuth2Listener.Addr().String()),
+	}
+
+	if *templatesPath != "" {
+		if _, err := os.Stat(*templatesPath); os.IsNotExist(err) {
+			log.Fatalf("templates path does not exist: %v", err)
+		}
+
+		templatesFS := os.DirFS(*templatesPath + "/..")
+
+		goAuth2WebAppOptions = append(goAuth2WebAppOptions, web.WithTemplateFS(templatesFS))
+	}
+
+	goAuth2webApp, err := web.New(goAuth2WebAppOptions...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = initDB(goAuth2App, store)
+	err = initDB(goAuth2App, store, oAuth2Listener.Addr().String())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,7 +74,10 @@ func main() {
 			log.Fatal(err)
 		}
 
-		ui := rangedbui.New(api.AggregateTypeStatsProjection(), store)
+		ui := rangedbui.New(
+			api.AggregateTypeStatsProjection(),
+			store,
+			rangedbui.WithHost(rangeDBListener.Addr().String()))
 
 		server := http.NewServeMux()
 		server.Handle("/", ui)
@@ -75,7 +93,7 @@ func main() {
 }
 
 func getListener(port uint) (net.Listener, error) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +101,7 @@ func getListener(port uint) (net.Listener, error) {
 	return listener, nil
 }
 
-func initDB(goauth2App *goauth2.App, store rangedb.Store) error {
+func initDB(goauth2App *goauth2.App, store rangedb.Store, goAuth2Host string) error {
 	const (
 		userID   = "445a57a41b7b43e285b51e99bba10a79"
 		email    = "john@example.com"
@@ -122,51 +140,62 @@ func initDB(goauth2App *goauth2.App, store rangedb.Store) error {
 		UserID:       userID,
 	})
 
-	fmt.Println("Example commands to test grant flows:")
-	fmt.Println("# Client Credentials")
-	fmt.Println(`curl localhost:8080/token \
-        -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
-        -d "grant_type=client_credentials" \
-        -d "scope=read_write" -s | jq`)
+	tmpl, err := template.New("docTemplate").Parse(`
+Example commands to test grant flows:
 
-	fmt.Println("# Resource Owner Password Credentials")
-	fmt.Println(`curl localhost:8080/token \
-        -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
-        -d "grant_type=password" \
-        -d "username=john@example.com" \
-        -d "password=Pass123" \
-        -d "scope=read_write" -s | jq`)
+# Client Credentials
+curl {{.Host}}/token \
+  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -d "grant_type=client_credentials" \
+  -d "scope=read_write" -s | jq
 
-	fmt.Println("# Refresh Token")
-	fmt.Println(`curl localhost:8080/token \
-        -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
-        -d "grant_type=refresh_token" \
-        -d "refresh_token=3cc6fa5b470642b081e3ebd29aa9b43c" \
-        -d "scope=read_write" -s | jq`)
+# Resource Owner Password Credentials
+curl {{.Host}}/token \
+  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -d "grant_type=password" \
+  -d "username=john@example.com" \
+  -d "password=Pass123" \
+  -d "scope=read_write" -s | jq
 
-	fmt.Println("# Refresh Token x2")
-	fmt.Println(`curl localhost:8080/token \
-        -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
-        -d "grant_type=refresh_token" \
-        -d "refresh_token=93b5e8869a954faaa6c6ba73dfea1a09" \
-        -d "scope=read_write" -s | jq`)
+# Refresh Token
+curl {{.Host}}/token \
+  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=3cc6fa5b470642b081e3ebd29aa9b43c" \
+  -d "scope=read_write" -s | jq
 
-	fmt.Println("# Authorization Code")
-	fmt.Println(`http://0.0.0.0:8080/login?client_id=8895e1e5f06644ebb41c26ea5740b246&redirect_uri=https://example.com/oauth2/callback&response_type=code&state=somestate&scope=read_write`)
-	fmt.Println("user: john@example.com")
-	fmt.Println("pass: Pass123")
+# Refresh Token x2
+curl {{.Host}}/token \
+  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=93b5e8869a954faaa6c6ba73dfea1a09" \
+  -d "scope=read_write" -s | jq
 
-	fmt.Println("# Authorization Code Token")
-	fmt.Println(`curl localhost:8080/token \
-        -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
-        -d "grant_type=authorization_code" \
-        -d "code=3cc6fa5b470642b081e3ebd29aa9b43c" \
-        -d "redirect_uri=https://example.com/oauth2/callback" -s | jq`)
+# Authorization Code
+http://{{.Host}}/login?client_id=8895e1e5f06644ebb41c26ea5740b246&redirect_uri=https://example.com/oauth2/callback&response_type=code&state=somestate&scope=read_write
+  user: john@example.com
+  pass: Pass123
 
-	fmt.Println("\n# Implicit")
-	fmt.Println(`http://0.0.0.0:8080/login?client_id=8895e1e5f06644ebb41c26ea5740b246&redirect_uri=https://example.com/oauth2/callback&response_type=token&state=somestate&scope=read_write`)
-	fmt.Println("user: john@example.com")
-	fmt.Println("pass: Pass123")
+# Authorization Code Token
+curl {{.Host}}/token \
+  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -d "grant_type=authorization_code" \
+  -d "code=3cc6fa5b470642b081e3ebd29aa9b43c" \
+  -d "redirect_uri=https://example.com/oauth2/callback" -s | jq
 
-	return nil
+# Implicit
+http://{{.Host}}/login?client_id=8895e1e5f06644ebb41c26ea5740b246&redirect_uri=https://example.com/oauth2/callback&response_type=token&state=somestate&scope=read_write
+  user: john@example.com
+  pass: Pass123
+
+`)
+	if err != nil {
+		return err
+	}
+
+	return tmpl.Execute(os.Stdout, struct {
+		Host string
+	}{
+		Host: goAuth2Host,
+	})
 }

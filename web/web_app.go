@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/inklabs/goauth2"
 	"github.com/inklabs/goauth2/projection"
-	"github.com/inklabs/goauth2/web/pkg/templatemanager"
 )
 
 const (
@@ -25,13 +25,16 @@ const (
 )
 
 //go:embed templates
-var templateAssets embed.FS
+var templates embed.FS
+
+const defaultHost = "0.0.0.0:8080"
 
 type webApp struct {
-	router          *mux.Router
-	templateManager *templatemanager.TemplateManager
-	goauth2App      *goauth2.App
-	projections     struct {
+	router      *mux.Router
+	templateFS  fs.FS
+	goAuth2App  *goauth2.App
+	host        string
+	projections struct {
 		emailToUserID      *projection.EmailToUserID
 		clientApplications *projection.ClientApplications
 	}
@@ -40,35 +43,38 @@ type webApp struct {
 // Option defines functional option parameters for webApp.
 type Option func(*webApp)
 
-// WithTemplateFilesystem is a functional option to inject a template loader.
-func WithTemplateFilesystem(fileSystem fs.FS) Option {
-	return func(app *webApp) {
-		app.templateManager = templatemanager.New(fileSystem)
+// WithTemplateFS is a functional option to inject a fs.FS
+func WithTemplateFS(f fs.FS) Option {
+	return func(webApp *webApp) {
+		webApp.templateFS = f
 	}
 }
 
-// WithGoauth2App is a functional option to inject a goauth2 application.
-func WithGoauth2App(goauth2App *goauth2.App) Option {
+// WithGoAuth2App is a functional option to inject a goauth2 application.
+func WithGoAuth2App(goAuth2App *goauth2.App) Option {
 	return func(app *webApp) {
-		app.goauth2App = goauth2App
+		app.goAuth2App = goAuth2App
+	}
+}
+
+// WithHost is a functional option to inject a tcp4 host.
+func WithHost(host string) Option {
+	return func(app *webApp) {
+		app.host = host
 	}
 }
 
 // New constructs an webApp.
 func New(options ...Option) (*webApp, error) {
-	goauth2App, err := goauth2.New()
+	goAuth2App, err := goauth2.New()
 	if err != nil {
 		return nil, err
 	}
 
-	assets, templateErr := fs.Sub(templateAssets, "templates")
-	if templateErr != nil {
-		return nil, templateErr
-	}
-
 	app := &webApp{
-		templateManager: templatemanager.New(assets),
-		goauth2App:      goauth2App,
+		templateFS: templates,
+		goAuth2App: goAuth2App,
+		host:       defaultHost,
 	}
 
 	for _, option := range options {
@@ -96,7 +102,7 @@ func (a *webApp) initProjections() error {
 	a.projections.emailToUserID = projection.NewEmailToUserID()
 	a.projections.clientApplications = projection.NewClientApplications()
 
-	return a.goauth2App.SubscribeAndReplay(
+	return a.goAuth2App.SubscribeAndReplay(
 		a.projections.emailToUserID,
 		a.projections.clientApplications,
 	)
@@ -191,7 +197,7 @@ func (a *webApp) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
+	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
 		UserID:      userID,
 		ClientID:    clientID,
 		RedirectURI: redirectURI,
@@ -238,7 +244,7 @@ func (a *webApp) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaImplicitGrant{
+	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.RequestAccessTokenViaImplicitGrant{
 		UserID:      userID,
 		ClientID:    clientID,
 		RedirectURI: redirectURI,
@@ -318,7 +324,7 @@ func (a *webApp) token(w http.ResponseWriter, r *http.Request) {
 func (a *webApp) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret, scope string) {
 	refreshToken := r.Form.Get("refresh_token")
 
-	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaRefreshTokenGrant{
+	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.RequestAccessTokenViaRefreshTokenGrant{
 		RefreshToken: refreshToken,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -356,7 +362,7 @@ func (a *webApp) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientI
 		return
 	}
 
-	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaROPCGrant{
+	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.RequestAccessTokenViaROPCGrant{
 		UserID:       userID,
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -392,7 +398,7 @@ func (a *webApp) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientI
 }
 
 func (a *webApp) handleClientCredentialsGrant(w http.ResponseWriter, clientID, clientSecret, scope string) {
-	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
+	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		Scope:        scope,
@@ -416,7 +422,7 @@ func (a *webApp) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *htt
 	authorizationCode := r.Form.Get("code")
 	redirectURI := r.Form.Get("redirect_uri")
 
-	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{
+	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.RequestAccessTokenViaAuthorizationCodeGrant{
 		AuthorizationCode: authorizationCode,
 		ClientID:          clientID,
 		ClientSecret:      clientSecret,
@@ -454,11 +460,18 @@ func (a *webApp) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *htt
 }
 
 func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data interface{}) {
-	err := a.templateManager.RenderTemplate(w, templateName, data)
-
+	tmpl, err := template.New(templateName).Funcs(FuncMap).ParseFS(a.templateFS, "templates/"+templateName)
 	if err != nil {
-		log.Println(err)
+		log.Printf("unable to parse template %s: %v", templateName, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	err = tmpl.Execute(w, data)
+	if err != nil {
+		log.Printf("unable to render template %s: %v", templateName, err)
+		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
+		return
 	}
 }
 

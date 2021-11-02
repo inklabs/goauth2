@@ -1,4 +1,4 @@
-package templatemanager
+package web
 
 import (
 	"html/template"
