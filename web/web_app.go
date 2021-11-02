@@ -27,7 +27,7 @@ const (
 //go:embed templates
 var templateAssets embed.FS
 
-type app struct {
+type webApp struct {
 	router          *mux.Router
 	templateManager *templatemanager.TemplateManager
 	goauth2App      *goauth2.App
@@ -37,25 +37,25 @@ type app struct {
 	}
 }
 
-// Option defines functional option parameters for app.
-type Option func(*app)
+// Option defines functional option parameters for webApp.
+type Option func(*webApp)
 
 // WithTemplateFilesystem is a functional option to inject a template loader.
 func WithTemplateFilesystem(fileSystem fs.FS) Option {
-	return func(app *app) {
+	return func(app *webApp) {
 		app.templateManager = templatemanager.New(fileSystem)
 	}
 }
 
 // WithGoauth2App is a functional option to inject a goauth2 application.
 func WithGoauth2App(goauth2App *goauth2.App) Option {
-	return func(app *app) {
+	return func(app *webApp) {
 		app.goauth2App = goauth2App
 	}
 }
 
-// New constructs an app.
-func New(options ...Option) (*app, error) {
+// New constructs an webApp.
+func New(options ...Option) (*webApp, error) {
 	goauth2App, err := goauth2.New()
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func New(options ...Option) (*app, error) {
 		return nil, templateErr
 	}
 
-	app := &app{
+	app := &webApp{
 		templateManager: templatemanager.New(assets),
 		goauth2App:      goauth2App,
 	}
@@ -84,7 +84,7 @@ func New(options ...Option) (*app, error) {
 	return app, nil
 }
 
-func (a *app) initRoutes() {
+func (a *webApp) initRoutes() {
 	a.router = mux.NewRouter().StrictSlash(true)
 	a.router.HandleFunc("/authorize", a.authorize)
 	a.router.HandleFunc("/login", a.login)
@@ -92,7 +92,7 @@ func (a *app) initRoutes() {
 	a.router.HandleFunc("/client-applications", a.listClientApplications)
 }
 
-func (a *app) initProjections() error {
+func (a *webApp) initProjections() error {
 	a.projections.emailToUserID = projection.NewEmailToUserID()
 	a.projections.clientApplications = projection.NewClientApplications()
 
@@ -102,11 +102,11 @@ func (a *app) initProjections() error {
 	)
 }
 
-func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (a *webApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.router.ServeHTTP(w, r)
 }
 
-func (a *app) login(w http.ResponseWriter, r *http.Request) {
+func (a *webApp) login(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 	clientId := params.Get("client_id")
 	redirectURI := params.Get("redirect_uri")
@@ -129,7 +129,7 @@ func (a *app) login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *app) listClientApplications(w http.ResponseWriter, _ *http.Request) {
+func (a *webApp) listClientApplications(w http.ResponseWriter, _ *http.Request) {
 	type ClientApplication struct {
 		ClientID        string
 		ClientSecret    string
@@ -153,7 +153,7 @@ func (a *app) listClientApplications(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (a *app) authorize(w http.ResponseWriter, r *http.Request) {
+func (a *webApp) authorize(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		writeInvalidRequestResponse(w)
@@ -177,7 +177,7 @@ func (a *app) authorize(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *app) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request) {
+func (a *webApp) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request) {
 	username := r.Form.Get("username")
 	password := r.Form.Get("password")
 	clientID := r.Form.Get("client_id")
@@ -224,7 +224,7 @@ func (a *app) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, uri, http.StatusFound)
 }
 
-func (a *app) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
+func (a *webApp) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
 	username := r.Form.Get("username")
 	password := r.Form.Get("password")
 	clientID := r.Form.Get("client_id")
@@ -281,7 +281,7 @@ type AccessTokenResponse struct {
 	Scope        string `json:"scope,omitempty"`
 }
 
-func (a *app) token(w http.ResponseWriter, r *http.Request) {
+func (a *webApp) token(w http.ResponseWriter, r *http.Request) {
 	clientID, clientSecret, ok := r.BasicAuth()
 	if !ok {
 		writeInvalidClientResponse(w)
@@ -315,7 +315,7 @@ func (a *app) token(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *app) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret, scope string) {
+func (a *webApp) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret, scope string) {
 	refreshToken := r.Form.Get("refresh_token")
 
 	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaRefreshTokenGrant{
@@ -347,7 +347,7 @@ func (a *app) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, cl
 	return
 }
 
-func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret, scope string) {
+func (a *webApp) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret, scope string) {
 	username := r.Form.Get("username")
 	password := r.Form.Get("password")
 	userID, err := a.projections.emailToUserID.GetUserID(username)
@@ -391,7 +391,7 @@ func (a *app) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientID, 
 	return
 }
 
-func (a *app) handleClientCredentialsGrant(w http.ResponseWriter, clientID, clientSecret, scope string) {
+func (a *webApp) handleClientCredentialsGrant(w http.ResponseWriter, clientID, clientSecret, scope string) {
 	events := SavedEvents(a.goauth2App.Dispatch(goauth2.RequestAccessTokenViaClientCredentialsGrant{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
@@ -412,7 +412,7 @@ func (a *app) handleClientCredentialsGrant(w http.ResponseWriter, clientID, clie
 	return
 }
 
-func (a *app) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret string) {
+func (a *webApp) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *http.Request, clientID, clientSecret string) {
 	authorizationCode := r.Form.Get("code")
 	redirectURI := r.Form.Get("redirect_uri")
 
@@ -453,7 +453,7 @@ func (a *app) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *http.R
 	return
 }
 
-func (a *app) renderTemplate(w http.ResponseWriter, templateName string, data interface{}) {
+func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data interface{}) {
 	err := a.templateManager.RenderTemplate(w, templateName, data)
 
 	if err != nil {
