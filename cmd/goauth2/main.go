@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"text/template"
 
@@ -68,8 +69,14 @@ func main() {
 	go func() {
 		rangeDBListener, err := getListener(0)
 		rangeDBPort := rangeDBListener.Addr().(*net.TCPAddr).Port
-		baseUri := fmt.Sprintf("%s/api", rangeDBListener.Addr().String())
-		api, err := rangedbapi.New(rangedbapi.WithStore(store), rangedbapi.WithBaseUri(baseUri))
+
+		rangeDBAPIUri := url.URL{
+			Scheme: "http",
+			Host:   rangeDBListener.Addr().String(),
+			Path:   "/api",
+		}
+
+		api, err := rangedbapi.New(rangedbapi.WithStore(store), rangedbapi.WithBaseUri(rangeDBAPIUri.String()))
 		if err != nil {
 			log.Fatal(err)
 		}
