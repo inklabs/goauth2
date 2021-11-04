@@ -3,10 +3,15 @@ package web
 import (
 	"html/template"
 	"time"
+
+	"github.com/inklabs/goauth2"
 )
 
 var FuncMap = template.FuncMap{
 	"formatDate": formatDate,
+	"goAuth2Version": func() string {
+		return goauth2.Version
+	},
 }
 
 func formatDate(timestamp uint64, layout string) string {

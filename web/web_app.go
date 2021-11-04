@@ -24,6 +24,9 @@ const (
 	expiresAtTODO   = 1574371565
 )
 
+//go:embed static
+var staticAssets embed.FS
+
 //go:embed templates
 var templates embed.FS
 
@@ -96,6 +99,7 @@ func (a *webApp) initRoutes() {
 	a.router.HandleFunc("/login", a.login)
 	a.router.HandleFunc("/token", a.token)
 	a.router.HandleFunc("/client-applications", a.listClientApplications)
+	a.router.PathPrefix("/static/").Handler(http.FileServer(http.FS(staticAssets)))
 }
 
 func (a *webApp) initProjections() error {
@@ -120,7 +124,7 @@ func (a *webApp) login(w http.ResponseWriter, r *http.Request) {
 	state := params.Get("state")
 	scope := params.Get("scope")
 
-	a.renderTemplate(w, "login.html", struct {
+	a.renderTemplate(w, "login.gohtml", struct {
 		ClientId     string
 		RedirectURI  string
 		ResponseType string
@@ -135,12 +139,17 @@ func (a *webApp) login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type ClientApplication struct {
+	ClientID        string
+	ClientSecret    string
+	CreateTimestamp uint64
+}
+
+type ClientApplicationTemplateVars struct {
+	ClientApplications []ClientApplication
+}
+
 func (a *webApp) listClientApplications(w http.ResponseWriter, _ *http.Request) {
-	type ClientApplication struct {
-		ClientID        string
-		ClientSecret    string
-		CreateTimestamp uint64
-	}
 
 	var clientApplications []ClientApplication
 
@@ -152,7 +161,7 @@ func (a *webApp) listClientApplications(w http.ResponseWriter, _ *http.Request) 
 		})
 	}
 
-	a.renderTemplate(w, "client-applications.html", struct {
+	a.renderTemplate(w, "client-applications.gohtml", struct {
 		ClientApplications []ClientApplication
 	}{
 		ClientApplications: clientApplications,
@@ -460,7 +469,7 @@ func (a *webApp) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *htt
 }
 
 func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data interface{}) {
-	tmpl, err := template.New(templateName).Funcs(FuncMap).ParseFS(a.templateFS, "templates/"+templateName)
+	tmpl, err := template.New(templateName).Funcs(FuncMap).ParseFS(a.templateFS, "templates/layout/*.gohtml", "templates/"+templateName)
 	if err != nil {
 		log.Printf("unable to parse template %s: %v", templateName, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
