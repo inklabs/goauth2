@@ -9,10 +9,11 @@ import (
 )
 
 type user struct {
-	UserID          string
-	Username        string
-	CreateTimestamp uint64
-	IsAdmin         bool
+	UserID                      string
+	Username                    string
+	CreateTimestamp             uint64
+	IsAdmin                     bool
+	CanOnboardAdminApplications bool
 }
 
 type Users struct {
@@ -37,6 +38,9 @@ func (a *Users) Accept(record *rangedb.Record) {
 
 	case *goauth2.UserWasGrantedAdministratorRole:
 		a.users[event.UserID].IsAdmin = true
+
+	case *goauth2.UserWasAuthorizedToOnBoardClientApplications:
+		a.users[event.UserID].CanOnboardAdminApplications = true
 
 	}
 }

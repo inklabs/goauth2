@@ -171,10 +171,11 @@ func (a *webApp) listClientApplications(w http.ResponseWriter, _ *http.Request) 
 }
 
 type User struct {
-	UserID          string
-	Username        string
-	CreateTimestamp uint64
-	IsAdmin         bool
+	UserID                      string
+	Username                    string
+	CreateTimestamp             uint64
+	IsAdmin                     bool
+	CanOnboardAdminApplications bool
 }
 
 type listUsersTemplateVars struct {
@@ -187,10 +188,11 @@ func (a *webApp) listUsers(w http.ResponseWriter, _ *http.Request) {
 
 	for _, user := range a.projections.users.GetAll() {
 		users = append(users, User{
-			UserID:          user.UserID,
-			Username:        user.Username,
-			CreateTimestamp: user.CreateTimestamp,
-			IsAdmin:         user.IsAdmin,
+			UserID:                      user.UserID,
+			Username:                    user.Username,
+			CreateTimestamp:             user.CreateTimestamp,
+			IsAdmin:                     user.IsAdmin,
+			CanOnboardAdminApplications: user.CanOnboardAdminApplications,
 		})
 	}
 

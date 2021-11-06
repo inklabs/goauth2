@@ -74,6 +74,28 @@ func TestUsers_Accept(t *testing.T) {
 		assert.True(t, actualUsers[0].IsAdmin)
 	})
 
+	t.Run("includes authorized to onboard client applications flag", func(t *testing.T) {
+		// Given
+		users := projection.NewUsers()
+		users.Accept(rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
+			UserID:       userID,
+			Username:     username,
+			PasswordHash: passwordHash,
+		}))
+		users.Accept(rangedbtest.DummyRecordFromEvent(&goauth2.UserWasAuthorizedToOnBoardClientApplications{
+			UserID:            userID,
+			AuthorizingUserID: adminUserID,
+		}))
+
+		// When
+		actualUsers := users.GetAll()
+
+		// Then
+		assert.Len(t, actualUsers, 1)
+		assert.Equal(t, userID, actualUsers[0].UserID)
+		assert.True(t, actualUsers[0].CanOnboardAdminApplications)
+	})
+
 	t.Run("returns empty list", func(t *testing.T) {
 		// Given
 		users := projection.NewUsers()

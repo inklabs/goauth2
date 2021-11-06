@@ -23,7 +23,10 @@
                             <td>{{.UserID}}</td>
                             <td>{{.Username}}</td>
                             <td class="date" title="{{.CreateTimestamp}}">{{formatDate .CreateTimestamp "Jan 02, 2006 15:04:05 UTC"}}</td>
-                            <td>{{if .IsAdmin}}<i class="fi-universal-access medium" title="Admin"></i>{{end}}</td>
+                            <td>
+                                {{if .IsAdmin}}<i class="fi-universal-access medium" title="Admin"></i>{{end}}
+                                {{if .CanOnboardAdminApplications}}<i class="fi-key medium" title="Authorized to Onboard Client Applications"></i>{{end}}
+                            </td>
                         </tr>
                     {{end}}
                     </tbody>
