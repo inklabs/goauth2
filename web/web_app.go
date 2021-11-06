@@ -206,6 +206,7 @@ func (a *webApp) handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// TODO: Change signature for Dispatch from []rangedb.Event to SavedEvents
 	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.RequestAuthorizationCodeViaAuthorizationCodeGrant{
 		UserID:      userID,
 		ClientID:    clientID,

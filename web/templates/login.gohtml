@@ -9,11 +9,13 @@
             </div>
             <div class="cell medium-4 medium-order-1">
                 <form method="post" class="login-page" action="/authorize">
-                    <input value="{{ .ClientId }}" name="client_id" type="hidden">
-                    <input value="{{ .RedirectURI }}" name="redirect_uri" type="hidden">
-                    <input value="{{ .ResponseType }}" name="response_type" type="hidden">
-                    <input value="{{ .Scope }}" name="scope" type="hidden">
-                    <input value="{{ .State }}" name="state" type="hidden">
+                    {{ if ne .ResponseType "" }}
+                        <input value="{{ .ClientId }}" name="client_id" type="hidden">
+                        <input value="{{ .RedirectURI }}" name="redirect_uri" type="hidden">
+                        <input value="{{ .ResponseType }}" name="response_type" type="hidden">
+                        <input value="{{ .Scope }}" name="scope" type="hidden">
+                        <input value="{{ .State }}" name="state" type="hidden">
+                    {{ end }}
                     <div class="form-box">
                         <div class="form-vertical">
                             <div class="form-group">

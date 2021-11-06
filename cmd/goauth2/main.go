@@ -110,9 +110,11 @@ func getListener(port uint) (net.Listener, error) {
 
 func initDB(goauth2App *goauth2.App, store rangedb.Store, goAuth2Host string) error {
 	const (
-		userID   = "445a57a41b7b43e285b51e99bba10a79"
-		email    = "john@example.com"
-		password = "Pass123"
+		userID       = "445a57a41b7b43e285b51e99bba10a79"
+		email        = "john@example.com"
+		password     = "Pass123"
+		clientID     = "8895e1e5f06644ebb41c26ea5740b246"
+		clientSecret = "c1e847aef925467290b4302e64f3de4e"
 	)
 
 	goauth2App.Dispatch(goauth2.OnBoardUser{
@@ -141,8 +143,8 @@ func initDB(goauth2App *goauth2.App, store rangedb.Store, goAuth2Host string) er
 	})
 
 	goauth2App.Dispatch(goauth2.OnBoardClientApplication{
-		ClientID:     "8895e1e5f06644ebb41c26ea5740b246",
-		ClientSecret: "c1e847aef925467290b4302e64f3de4e",
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 		RedirectURI:  "https://example.com/oauth2/callback",
 		UserID:       userID,
 	})
@@ -152,13 +154,13 @@ Example commands to test grant flows:
 
 # Client Credentials
 curl {{.Host}}/token \
-  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -u {{.ClientID}}:{{.ClientSecret}} \
   -d "grant_type=client_credentials" \
   -d "scope=read_write" -s | jq
 
 # Resource Owner Password Credentials
 curl {{.Host}}/token \
-  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -u {{.ClientID}}:{{.ClientSecret}} \
   -d "grant_type=password" \
   -d "username=john@example.com" \
   -d "password=Pass123" \
@@ -166,14 +168,14 @@ curl {{.Host}}/token \
 
 # Refresh Token
 curl {{.Host}}/token \
-  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -u {{.ClientID}}:{{.ClientSecret}} \
   -d "grant_type=refresh_token" \
   -d "refresh_token=3cc6fa5b470642b081e3ebd29aa9b43c" \
   -d "scope=read_write" -s | jq
 
 # Refresh Token x2
 curl {{.Host}}/token \
-  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -u {{.ClientID}}:{{.ClientSecret}} \
   -d "grant_type=refresh_token" \
   -d "refresh_token=93b5e8869a954faaa6c6ba73dfea1a09" \
   -d "scope=read_write" -s | jq
@@ -185,7 +187,7 @@ http://{{.Host}}/login?client_id=8895e1e5f06644ebb41c26ea5740b246&redirect_uri=h
 
 # Authorization Code Token
 curl {{.Host}}/token \
-  -u 8895e1e5f06644ebb41c26ea5740b246:c1e847aef925467290b4302e64f3de4e \
+  -u {{.ClientID}}:{{.ClientSecret}} \
   -d "grant_type=authorization_code" \
   -d "code=3cc6fa5b470642b081e3ebd29aa9b43c" \
   -d "redirect_uri=https://example.com/oauth2/callback" -s | jq
@@ -201,8 +203,12 @@ http://{{.Host}}/login?client_id=8895e1e5f06644ebb41c26ea5740b246&redirect_uri=h
 	}
 
 	return tmpl.Execute(os.Stdout, struct {
-		Host string
+		Host         string
+		ClientSecret string
+		ClientID     string
 	}{
-		Host: goAuth2Host,
+		Host:         goAuth2Host,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 	})
 }

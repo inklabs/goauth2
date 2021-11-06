@@ -63,10 +63,13 @@ func Test_Login(t *testing.T) {
 		// Given
 		app, err := web.New()
 		require.NoError(t, err)
-		params := getAuthorizeParams()
-		uri := fmt.Sprintf("/login?%s", params.Encode())
+
+		uri := url.URL{
+			Path:     "/login",
+			RawQuery: getAuthorizeParams().Encode(),
+		}
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodGet, uri, nil)
+		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
 
 		// When
 		app.ServeHTTP(w, r)
@@ -83,16 +86,45 @@ func Test_Login(t *testing.T) {
 		assert.Contains(t, body, state)
 	})
 
-	t.Run("fails to serve login form", func(t *testing.T) {
+	t.Run("does not include OAuth2 parameters if token is not in the query parameters", func(t *testing.T) {
+		// Given
+		app, err := web.New()
+		require.NoError(t, err)
+
+		uri := url.URL{
+			Path: "/login",
+		}
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		body := w.Body.String()
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+		assert.Contains(t, body, "form")
+		assert.NotContains(t, body, "client_id")
+		assert.NotContains(t, body, "redirect_uri")
+		assert.NotContains(t, body, "response_type")
+		assert.NotContains(t, body, "scope")
+		assert.NotContains(t, body, "state")
+	})
+
+	t.Run("fails to serve login form from failing template filesystem", func(t *testing.T) {
 		// Given
 		app, err := web.New(
 			web.WithTemplateFS(failingFilesystem{}),
 		)
 		require.NoError(t, err)
-		params := getAuthorizeParams()
-		uri := fmt.Sprintf("/login?%s", params.Encode())
+
+		uri := url.URL{
+			Path:     "/login",
+			RawQuery: getAuthorizeParams().Encode(),
+		}
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodGet, uri, nil)
+		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
 
 		// When
 		app.ServeHTTP(w, r)
@@ -102,6 +134,7 @@ func Test_Login(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
 		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
 		assert.Contains(t, body, "internal error")
+		// TODO: verify log message
 	})
 }
 
