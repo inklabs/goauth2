@@ -95,7 +95,10 @@ func main() {
 	}()
 
 	goAuth2Port := oAuth2Listener.Addr().(*net.TCPAddr).Port
-	fmt.Printf("Go OAuth2 Server: http://0.0.0.0:%d/login\n", goAuth2Port)
+	fmt.Printf("Go OAuth2 Server:\n")
+	fmt.Printf("   http://0.0.0.0:%d/login\n", goAuth2Port)
+	fmt.Printf("   http://0.0.0.0:%d/list-client-applications\n", goAuth2Port)
+	fmt.Printf("   http://0.0.0.0:%d/list-users\n", goAuth2Port)
 	log.Fatal(http.Serve(oAuth2Listener, goAuth2webApp))
 }
 

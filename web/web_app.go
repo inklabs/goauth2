@@ -40,6 +40,7 @@ type webApp struct {
 	projections struct {
 		emailToUserID      *projection.EmailToUserID
 		clientApplications *projection.ClientApplications
+		users              *projection.Users
 	}
 }
 
@@ -98,17 +99,20 @@ func (a *webApp) initRoutes() {
 	a.router.HandleFunc("/authorize", a.authorize)
 	a.router.HandleFunc("/login", a.login)
 	a.router.HandleFunc("/token", a.token)
-	a.router.HandleFunc("/client-applications", a.listClientApplications)
+	a.router.HandleFunc("/list-client-applications", a.listClientApplications)
+	a.router.HandleFunc("/list-users", a.listUsers)
 	a.router.PathPrefix("/static/").Handler(http.FileServer(http.FS(staticAssets)))
 }
 
 func (a *webApp) initProjections() error {
 	a.projections.emailToUserID = projection.NewEmailToUserID()
 	a.projections.clientApplications = projection.NewClientApplications()
+	a.projections.users = projection.NewUsers()
 
 	return a.goAuth2App.SubscribeAndReplay(
 		a.projections.emailToUserID,
 		a.projections.clientApplications,
+		a.projections.users,
 	)
 }
 
@@ -145,7 +149,7 @@ type ClientApplication struct {
 	CreateTimestamp uint64
 }
 
-type ClientApplicationTemplateVars struct {
+type listClientApplicationsTemplateVars struct {
 	ClientApplications []ClientApplication
 }
 
@@ -161,10 +165,35 @@ func (a *webApp) listClientApplications(w http.ResponseWriter, _ *http.Request) 
 		})
 	}
 
-	a.renderTemplate(w, "client-applications.gohtml", struct {
-		ClientApplications []ClientApplication
-	}{
+	a.renderTemplate(w, "list-client-applications.gohtml", listClientApplicationsTemplateVars{
 		ClientApplications: clientApplications,
+	})
+}
+
+type User struct {
+	UserID          string
+	Username        string
+	CreateTimestamp uint64
+}
+
+type listUsersTemplateVars struct {
+	Users []User
+}
+
+func (a *webApp) listUsers(w http.ResponseWriter, _ *http.Request) {
+
+	var users []User
+
+	for _, user := range a.projections.users.GetAll() {
+		users = append(users, User{
+			UserID:          user.UserID,
+			Username:        user.Username,
+			CreateTimestamp: user.CreateTimestamp,
+		})
+	}
+
+	a.renderTemplate(w, "list-users.gohtml", listUsersTemplateVars{
+		Users: users,
 	})
 }
 

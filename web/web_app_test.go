@@ -31,6 +31,9 @@ const (
 	clientID2              = "da975f24538942a1872915d0982a9b50"
 	clientSecret2          = "977c8a5726e148c0aa1b48ebd435a02c"
 	userID                 = "25c807edd664438985401b2282678b13"
+	userID2                = "1c1a688de1c5433a8e41db9192b2ae98"
+	username               = "john123"
+	username2              = "doe123"
 	adminUserID            = "873aeb9386724213b4c1410bce9f838c"
 	email                  = "john@example.com"
 	password               = "Pass123!"
@@ -139,39 +142,88 @@ func Test_Login(t *testing.T) {
 }
 
 func TestListClientApplications(t *testing.T) {
-	// Given
-	eventStore := getStoreWithEvents(t,
-		goauth2.ClientApplicationWasOnBoarded{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			RedirectURI:  redirectURI,
-			UserID:       adminUserID,
-		},
-		goauth2.ClientApplicationWasOnBoarded{
-			ClientID:     clientID2,
-			ClientSecret: clientSecret2,
-			RedirectURI:  redirectURI,
-			UserID:       adminUserID,
-		},
-	)
+	t.Run("list 2 client applications", func(t *testing.T) {
+		// Given
+		eventStore := getStoreWithEvents(t,
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				RedirectURI:  redirectURI,
+				UserID:       adminUserID,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     clientID2,
+				ClientSecret: clientSecret2,
+				RedirectURI:  redirectURI,
+				UserID:       adminUserID,
+			},
+		)
 
-	goauth2App, err := goauth2.New(goauth2.WithStore(eventStore))
-	require.NoError(t, err)
-	app, err := web.New(
-		web.WithGoAuth2App(goauth2App),
-	)
-	require.NoError(t, err)
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/client-applications", nil)
+		goauth2App, err := goauth2.New(goauth2.WithStore(eventStore))
+		require.NoError(t, err)
+		app, err := web.New(
+			web.WithGoAuth2App(goauth2App),
+		)
+		require.NoError(t, err)
 
-	// When
-	app.ServeHTTP(w, r)
+		uri := url.URL{
+			Path: "/list-client-applications",
+		}
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
 
-	// Then
-	require.Equal(t, http.StatusOK, w.Result().StatusCode)
-	assert.Equal(t, "HTTP/1.1", w.Result().Proto)
-	body := w.Body.String()
-	assert.Contains(t, body, clientID)
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+		body := w.Body.String()
+		assert.Contains(t, body, clientID)
+	})
+
+}
+
+func TestListUsers(t *testing.T) {
+	t.Run("list 2 users", func(t *testing.T) {
+		// Given
+		eventStore := getStoreWithEvents(t,
+			goauth2.UserWasOnBoarded{
+				UserID:       userID,
+				Username:     username,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID2,
+				Username:     username2,
+				PasswordHash: passwordHash,
+			},
+		)
+
+		goauth2App, err := goauth2.New(goauth2.WithStore(eventStore))
+		require.NoError(t, err)
+		app, err := web.New(
+			web.WithGoAuth2App(goauth2App),
+		)
+		require.NoError(t, err)
+
+		uri := url.URL{
+			Path: "/list-users",
+		}
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+		body := w.Body.String()
+		assert.Contains(t, body, userID)
+		assert.Contains(t, body, userID2)
+	})
+
 }
 
 func Test_TokenEndpoint(t *testing.T) {
