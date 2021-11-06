@@ -2,6 +2,7 @@ package projection
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/inklabs/rangedb"
 
@@ -17,6 +18,7 @@ type user struct {
 }
 
 type Users struct {
+	mu    sync.RWMutex
 	users map[string]*user
 }
 
@@ -27,6 +29,9 @@ func NewUsers() *Users {
 }
 
 func (a *Users) Accept(record *rangedb.Record) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	switch event := record.Data.(type) {
 
 	case *goauth2.UserWasOnBoarded:
@@ -47,10 +52,14 @@ func (a *Users) Accept(record *rangedb.Record) {
 
 // GetAll returns users sorted by most recent creation timestamp
 func (a *Users) GetAll() []*user {
+	a.mu.RLock()
+
 	var users []*user
 	for _, user := range a.users {
 		users = append(users, user)
 	}
+
+	a.mu.RUnlock()
 
 	sort.SliceStable(users, func(i, j int) bool {
 		return users[i].CreateTimestamp >= users[j].CreateTimestamp

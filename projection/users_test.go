@@ -1,6 +1,7 @@
 package projection_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -105,5 +106,35 @@ func TestUsers_Accept(t *testing.T) {
 
 		// Then
 		assert.Len(t, actualUsers, 0)
+	})
+
+	t.Run("does not error from deadlock", func(t *testing.T) {
+		// Given
+		users := projection.NewUsers()
+		record1 := rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
+			UserID:       userID,
+			Username:     username,
+			PasswordHash: passwordHash,
+		})
+		record2 := rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
+			UserID:       userID2,
+			Username:     username2,
+			PasswordHash: passwordHash,
+		})
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		// When
+		go func() {
+			users.Accept(record1)
+			wg.Done()
+		}()
+		users.Accept(record2)
+		wg.Done()
+
+		// Then
+		wg.Wait()
+		actualUsers := users.GetAll()
+		assert.Len(t, actualUsers, 2)
 	})
 }

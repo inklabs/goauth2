@@ -2,6 +2,7 @@ package projection
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/inklabs/rangedb"
 
@@ -9,6 +10,7 @@ import (
 )
 
 type EmailToUserID struct {
+	mu            sync.RWMutex
 	emailToUserID map[string]string
 }
 
@@ -21,11 +23,17 @@ func NewEmailToUserID() *EmailToUserID {
 func (a *EmailToUserID) Accept(record *rangedb.Record) {
 	event, ok := record.Data.(*goauth2.UserWasOnBoarded)
 	if ok {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+
 		a.emailToUserID[event.Username] = event.UserID
 	}
 }
 
 func (a *EmailToUserID) GetUserID(email string) (string, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
 	userID, ok := a.emailToUserID[email]
 	if !ok {
 		return "", UserNotFound

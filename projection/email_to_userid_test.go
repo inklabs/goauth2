@@ -1,6 +1,7 @@
 package projection_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/inklabs/rangedb/rangedbtest"
@@ -69,5 +70,34 @@ func TestEmailToUserID_Accept(t *testing.T) {
 		// Then
 		require.NoError(t, err)
 		assert.Equal(t, userID2, actualUserID)
+	})
+
+	t.Run("does not error from deadlock", func(t *testing.T) {
+		// Given
+		emailToUserID := projection.NewEmailToUserID()
+		record1 := rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
+			UserID:   userID,
+			Username: email,
+		})
+		record2 := rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
+			UserID:   userID2,
+			Username: email,
+		})
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		// When
+		go func() {
+			emailToUserID.Accept(record1)
+			wg.Done()
+		}()
+		emailToUserID.Accept(record2)
+		wg.Done()
+
+		// Then
+		wg.Wait()
+		actualUserID, err := emailToUserID.GetUserID(email)
+		require.NoError(t, err)
+		assert.Equal(t, userID, actualUserID)
 	})
 }

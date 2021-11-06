@@ -1,6 +1,7 @@
 package projection_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ func TestClientApplications_Accept(t *testing.T) {
 		clientSecret = "5970aca5e64d4f5e9e7842db8796619f"
 		userID       = "e171f450626644fa8656b037c42bbf11"
 		redirectURI  = "http://example.com/oauth2/callback"
+		clientID2    = "0e3c58dd233b43c0aba4fa7578b9aba0"
 	)
 	issueTime := time.Date(2020, 05, 11, 8, 0, 0, 0, time.UTC)
 
@@ -52,5 +54,37 @@ func TestClientApplications_Accept(t *testing.T) {
 
 		// Then
 		assert.Len(t, actualClientApplications, 0)
+	})
+
+	t.Run("does not error from deadlock", func(t *testing.T) {
+		// Given
+		clientApplications := projection.NewClientApplications()
+		record1 := rangedbtest.DummyRecordFromEvent(&goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			RedirectURI:  redirectURI,
+			UserID:       userID,
+		})
+		record2 := rangedbtest.DummyRecordFromEvent(&goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     clientID2,
+			ClientSecret: clientSecret,
+			RedirectURI:  redirectURI,
+			UserID:       userID,
+		})
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		// When
+		go func() {
+			clientApplications.Accept(record1)
+			wg.Done()
+		}()
+		clientApplications.Accept(record2)
+		wg.Done()
+
+		// Then
+		wg.Wait()
+		actualClientApplications := clientApplications.GetAll()
+		assert.Len(t, actualClientApplications, 2)
 	})
 }

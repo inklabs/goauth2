@@ -1,6 +1,9 @@
 package projection
 
 import (
+	"sort"
+	"sync"
+
 	"github.com/inklabs/rangedb"
 
 	"github.com/inklabs/goauth2"
@@ -13,6 +16,7 @@ type clientApplication struct {
 }
 
 type ClientApplications struct {
+	mu                 sync.RWMutex
 	clientApplications map[string]*clientApplication
 }
 
@@ -25,6 +29,9 @@ func NewClientApplications() *ClientApplications {
 func (a *ClientApplications) Accept(record *rangedb.Record) {
 	event, ok := record.Data.(*goauth2.ClientApplicationWasOnBoarded)
 	if ok {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+
 		a.clientApplications[event.ClientID] = &clientApplication{
 			ClientID:        event.ClientID,
 			ClientSecret:    event.ClientSecret,
@@ -33,10 +40,20 @@ func (a *ClientApplications) Accept(record *rangedb.Record) {
 	}
 }
 
+// GetAll returns client applications sorted by most recent creation timestamp
 func (a *ClientApplications) GetAll() []*clientApplication {
+	a.mu.RLock()
+
 	var clientApplications []*clientApplication
 	for _, clientApplication := range a.clientApplications {
 		clientApplications = append(clientApplications, clientApplication)
 	}
+
+	a.mu.RUnlock()
+
+	sort.SliceStable(clientApplications, func(i, j int) bool {
+		return clientApplications[i].CreateTimestamp >= clientApplications[j].CreateTimestamp
+	})
+
 	return clientApplications
 }
