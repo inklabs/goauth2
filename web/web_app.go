@@ -174,6 +174,7 @@ type User struct {
 	UserID          string
 	Username        string
 	CreateTimestamp uint64
+	IsAdmin         bool
 }
 
 type listUsersTemplateVars struct {
@@ -189,6 +190,7 @@ func (a *webApp) listUsers(w http.ResponseWriter, _ *http.Request) {
 			UserID:          user.UserID,
 			Username:        user.Username,
 			CreateTimestamp: user.CreateTimestamp,
+			IsAdmin:         user.IsAdmin,
 		})
 	}
 

@@ -116,6 +116,9 @@ func initDB(goauth2App *goauth2.App, store rangedb.Store, goAuth2Host string) er
 		userID       = "445a57a41b7b43e285b51e99bba10a79"
 		email        = "john@example.com"
 		password     = "Pass123"
+		userID2      = "03e16d6469bc4d07b4d0c832380e20ce"
+		email2       = "jane@example.com"
+		password2    = "Pass123"
 		clientID     = "8895e1e5f06644ebb41c26ea5740b246"
 		clientSecret = "c1e847aef925467290b4302e64f3de4e"
 	)
@@ -124,6 +127,12 @@ func initDB(goauth2App *goauth2.App, store rangedb.Store, goAuth2Host string) er
 		UserID:   userID,
 		Username: email,
 		Password: password,
+	})
+
+	goauth2App.Dispatch(goauth2.OnBoardUser{
+		UserID:   userID2,
+		Username: email2,
+		Password: password2,
 	})
 
 	ctx := context.Background()

@@ -14,6 +14,7 @@
                         <th>User ID</th>
                         <th>Username</th>
                         <th>Creation Date</th>
+                        <th>Roles</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -21,7 +22,8 @@
                         <tr>
                             <td>{{.UserID}}</td>
                             <td>{{.Username}}</td>
-                            <td class="date">{{formatDate .CreateTimestamp "Jan 02, 2006 15:04:05 UTC"}}</td>
+                            <td class="date" title="{{.CreateTimestamp}}">{{formatDate .CreateTimestamp "Jan 02, 2006 15:04:05 UTC"}}</td>
+                            <td>{{if .IsAdmin}}<i class="fi-universal-access medium" title="Admin"></i>{{end}}</td>
                         </tr>
                     {{end}}
                     </tbody>

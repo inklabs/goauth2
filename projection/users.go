@@ -1,6 +1,8 @@
 package projection
 
 import (
+	"sort"
+
 	"github.com/inklabs/rangedb"
 
 	"github.com/inklabs/goauth2"
@@ -10,6 +12,7 @@ type user struct {
 	UserID          string
 	Username        string
 	CreateTimestamp uint64
+	IsAdmin         bool
 }
 
 type Users struct {
@@ -23,20 +26,31 @@ func NewUsers() *Users {
 }
 
 func (a *Users) Accept(record *rangedb.Record) {
-	event, ok := record.Data.(*goauth2.UserWasOnBoarded)
-	if ok {
+	switch event := record.Data.(type) {
+
+	case *goauth2.UserWasOnBoarded:
 		a.users[event.UserID] = &user{
 			UserID:          event.UserID,
 			Username:        event.Username,
 			CreateTimestamp: record.InsertTimestamp,
 		}
+
+	case *goauth2.UserWasGrantedAdministratorRole:
+		a.users[event.UserID].IsAdmin = true
+
 	}
 }
 
+// GetAll returns users sorted by most recent creation timestamp
 func (a *Users) GetAll() []*user {
 	var users []*user
 	for _, user := range a.users {
 		users = append(users, user)
 	}
+
+	sort.SliceStable(users, func(i, j int) bool {
+		return users[i].CreateTimestamp >= users[j].CreateTimestamp
+	})
+
 	return users
 }

@@ -222,8 +222,52 @@ func TestListUsers(t *testing.T) {
 		body := w.Body.String()
 		assert.Contains(t, body, userID)
 		assert.Contains(t, body, userID2)
+		assert.NotContains(t, body, "Admin")
 	})
 
+	t.Run("list includes admin users", func(t *testing.T) {
+		// Given
+		eventStore := getStoreWithEvents(t,
+			goauth2.UserWasOnBoarded{
+				UserID:       adminUserID,
+				Username:     username,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:       userID2,
+				Username:     username2,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         userID2,
+				GrantingUserID: adminUserID,
+			},
+		)
+
+		goauth2App, err := goauth2.New(goauth2.WithStore(eventStore))
+		require.NoError(t, err)
+		app, err := web.New(
+			web.WithGoAuth2App(goauth2App),
+		)
+		require.NoError(t, err)
+
+		uri := url.URL{
+			Path: "/list-users",
+		}
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+		body := w.Body.String()
+		assert.Contains(t, body, adminUserID)
+		assert.Contains(t, body, "Admin")
+		assert.Contains(t, body, userID2)
+	})
 }
 
 func Test_TokenEndpoint(t *testing.T) {
