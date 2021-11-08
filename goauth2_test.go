@@ -1566,9 +1566,9 @@ func TestEventsAreBoundProperly(t *testing.T) {
 		// Then
 		rangedbtest.ReadRecord(t, blockingSubscriber.Records)
 		require.Len(t, recorder.Records, 1)
-		assert.IsType(t, &goauth2.UserWasOnBoarded{}, recorder.Records[0].Data)
+		assert.IsType(t, &goauth2.OnBoardUserWasRejectedDueToNonAdministrator{}, recorder.Records[0].Data)
 		require.Len(t, events, 1)
-		assert.IsType(t, goauth2.UserWasOnBoarded{}, events[0])
+		assert.IsType(t, goauth2.OnBoardUserWasRejectedDueToNonAdministrator{}, events[0])
 	})
 
 	t.Run("when injecting a store", func(t *testing.T) {
@@ -1590,9 +1590,9 @@ func TestEventsAreBoundProperly(t *testing.T) {
 		// Then
 		rangedbtest.ReadRecord(t, blockingSubscriber.Records)
 		require.Len(t, recorder.Records, 1)
-		assert.IsType(t, &goauth2.UserWasOnBoarded{}, recorder.Records[0].Data)
+		assert.IsType(t, &goauth2.OnBoardUserWasRejectedDueToNonAdministrator{}, recorder.Records[0].Data)
 		require.Len(t, events, 1)
-		assert.IsType(t, goauth2.UserWasOnBoarded{}, events[0])
+		assert.IsType(t, goauth2.OnBoardUserWasRejectedDueToNonAdministrator{}, events[0])
 	})
 }
 
