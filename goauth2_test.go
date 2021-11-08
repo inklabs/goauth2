@@ -27,8 +27,11 @@ const (
 	invalidRedirectURI  = "://invalid-uri"
 	insecureRedirectURI = "http://example.com/oauth2/callback"
 	userID              = "d904f8dbd4684a6591a24c8e67ea4a77"
+	userID2             = "e9de5c5ca4364fcb84ac2efc26382dbf"
 	adminUserID         = "7dd7157576e5426ebf44e387d80f0538"
+	notFoundUserID      = "92338d7f50df48f9b3d0ba4250b12e7a"
 	email               = "john@example.com"
+	email2              = "jane@example.com"
 	adminEmail          = "admin@example.com"
 	passwordHash        = "$2a$10$U6ej0p2d9Y8OO2635R7l/O4oEBvxgc9o6gCaQ1wjMZ77dr4qGl8nu"
 	password            = "Pass123!"
@@ -48,44 +51,124 @@ var (
 
 func Test_OnBoardUser(t *testing.T) {
 	t.Run("on-boards user", goauth2TestCase().
-		Given().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:         adminUserID,
+				Username:       email,
+				PasswordHash:   passwordHash,
+				GrantingUserID: adminUserID,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         adminUserID,
+				GrantingUserID: adminUserID,
+			},
+		).
 		When(goauth2.OnBoardUser{
-			UserID:   userID,
-			Username: email,
-			Password: password,
+			UserID:         userID,
+			Username:       email,
+			Password:       password,
+			GrantingUserID: adminUserID,
 		}).
 		ThenInspectEvents(func(t *testing.T, events []rangedb.Event) {
 			require.Equal(t, 1, len(events))
 			event := events[0].(goauth2.UserWasOnBoarded)
 			assert.Equal(t, userID, event.UserID)
 			assert.Equal(t, email, event.Username)
+			assert.Equal(t, adminUserID, event.GrantingUserID)
 			assert.True(t, goauth2.VerifyPassword(event.PasswordHash, password))
 		}))
 
-	t.Run("rejected due to existing user", goauth2TestCase().
-		Given(goauth2.UserWasOnBoarded{
-			UserID:       userID,
-			Username:     email,
-			PasswordHash: passwordHash,
-		}).
+	t.Run("rejected due to not found administrator", goauth2TestCase().
+		Given().
 		When(goauth2.OnBoardUser{
-			UserID:   userID,
-			Username: email,
-			Password: password,
+			UserID:         userID,
+			Username:       email,
+			Password:       password,
+			GrantingUserID: notFoundUserID,
+		}).
+		Then(goauth2.OnBoardUserWasRejectedDueToNonAdministrator{
+			UserID:         userID,
+			GrantingUserID: notFoundUserID,
+		}))
+
+	t.Run("rejected due to non-administrator", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:         userID,
+				Username:       email,
+				PasswordHash:   passwordHash,
+				GrantingUserID: adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:         userID2,
+				Username:       email2,
+				PasswordHash:   passwordHash,
+				GrantingUserID: adminUserID,
+			},
+		).
+		When(goauth2.OnBoardUser{
+			UserID:         userID,
+			Username:       email,
+			Password:       password,
+			GrantingUserID: userID2,
+		}).
+		Then(goauth2.OnBoardUserWasRejectedDueToNonAdministrator{
+			UserID:         userID,
+			GrantingUserID: userID2,
+		}))
+
+	t.Run("rejected due to existing user", goauth2TestCase().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:         adminUserID,
+				Username:       email,
+				PasswordHash:   passwordHash,
+				GrantingUserID: adminUserID,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         adminUserID,
+				GrantingUserID: adminUserID,
+			},
+			goauth2.UserWasOnBoarded{
+				UserID:         userID,
+				Username:       email,
+				PasswordHash:   passwordHash,
+				GrantingUserID: adminUserID,
+			},
+		).
+		When(goauth2.OnBoardUser{
+			UserID:         userID,
+			Username:       email,
+			Password:       password,
+			GrantingUserID: adminUserID,
 		}).
 		Then(goauth2.OnBoardUserWasRejectedDueToExistingUser{
-			UserID: userID,
+			UserID:         userID,
+			GrantingUserID: adminUserID,
 		}))
 
 	t.Run("rejected due to insecure password", goauth2TestCase().
-		Given().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:         adminUserID,
+				Username:       email,
+				PasswordHash:   passwordHash,
+				GrantingUserID: adminUserID,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         adminUserID,
+				GrantingUserID: adminUserID,
+			},
+		).
 		When(goauth2.OnBoardUser{
-			UserID:   userID,
-			Username: email,
-			Password: "password",
+			UserID:         userID,
+			Username:       email,
+			Password:       "password",
+			GrantingUserID: adminUserID,
 		}).
 		Then(goauth2.OnBoardUserWasRejectedDueToInsecurePassword{
-			UserID: userID,
+			UserID:         userID,
+			GrantingUserID: adminUserID,
 		}))
 
 	var logBuffer bytes.Buffer
@@ -94,11 +177,23 @@ func Test_OnBoardUser(t *testing.T) {
 		goauth2.WithStore(rangedbtest.NewFailingEventStore()),
 		goauth2.WithLogger(logger),
 	).
-		Given().
+		Given(
+			goauth2.UserWasOnBoarded{
+				UserID:         adminUserID,
+				Username:       email,
+				PasswordHash:   passwordHash,
+				GrantingUserID: adminUserID,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         adminUserID,
+				GrantingUserID: adminUserID,
+			},
+		).
 		When(goauth2.OnBoardUser{
-			UserID:   userID,
-			Username: email,
-			Password: password,
+			UserID:         userID,
+			Username:       email,
+			Password:       password,
+			GrantingUserID: adminUserID,
 		}).
 		ThenInspectEvents(func(t *testing.T, events []rangedb.Event) {
 			require.Equal(t, 0, len(events))

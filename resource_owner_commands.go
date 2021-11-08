@@ -3,9 +3,10 @@ package goauth2
 //go:generate go run github.com/inklabs/rangedb/gen/commandgenerator -id UserID -aggregateType resource-owner
 
 type OnBoardUser struct {
-	UserID   string `json:"userID"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	UserID         string `json:"userID"`
+	Username       string `json:"username"`
+	Password       string `json:"password"`
+	GrantingUserID string `json:"grantingUserID"`
 }
 type GrantUserAdministratorRole struct {
 	UserID         string `json:"userID"`

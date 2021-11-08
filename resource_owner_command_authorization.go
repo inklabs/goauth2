@@ -35,6 +35,7 @@ func (a *resourceOwnerCommandAuthorization) CommandTypes() []string {
 		GrantUserAdministratorRole{}.CommandType(),
 		AuthorizeUserToOnBoardClientApplications{}.CommandType(),
 		OnBoardClientApplication{}.CommandType(),
+		OnBoardUser{}.CommandType(),
 	}
 }
 
@@ -49,6 +50,9 @@ func (a *resourceOwnerCommandAuthorization) Handle(command Command) bool {
 
 	case OnBoardClientApplication:
 		return a.OnBoardClientApplication(c)
+
+	case OnBoardUser:
+		return a.OnBoardUser(c)
 
 	}
 
@@ -114,6 +118,28 @@ func (a *resourceOwnerCommandAuthorization) OnBoardClientApplication(c OnBoardCl
 		a.raise(OnBoardClientApplicationWasRejectedDueToUnAuthorizeUser{
 			ClientID: c.ClientID,
 			UserID:   c.UserID,
+		})
+		return false
+	}
+
+	return true
+}
+
+func (a *resourceOwnerCommandAuthorization) OnBoardUser(c OnBoardUser) bool {
+	resourceOwner := a.loadResourceOwnerAggregate(c.GrantingUserID)
+
+	if !resourceOwner.IsOnBoarded {
+		a.raise(OnBoardUserWasRejectedDueToNonAdministrator{
+			UserID:         c.UserID,
+			GrantingUserID: c.GrantingUserID,
+		})
+		return false
+	}
+
+	if !resourceOwner.IsAdministrator {
+		a.raise(OnBoardUserWasRejectedDueToNonAdministrator{
+			UserID:         c.UserID,
+			GrantingUserID: c.GrantingUserID,
 		})
 		return false
 	}

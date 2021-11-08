@@ -22,5 +22,6 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 )

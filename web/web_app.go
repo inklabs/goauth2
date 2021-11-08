@@ -173,6 +173,7 @@ func (a *webApp) listClientApplications(w http.ResponseWriter, _ *http.Request) 
 type User struct {
 	UserID                      string
 	Username                    string
+	GrantingUserID              string
 	CreateTimestamp             uint64
 	IsAdmin                     bool
 	CanOnboardAdminApplications bool
@@ -190,6 +191,7 @@ func (a *webApp) listUsers(w http.ResponseWriter, _ *http.Request) {
 		users = append(users, User{
 			UserID:                      user.UserID,
 			Username:                    user.Username,
+			GrantingUserID:              user.GrantingUserID,
 			CreateTimestamp:             user.CreateTimestamp,
 			IsAdmin:                     user.IsAdmin,
 			CanOnboardAdminApplications: user.CanOnboardAdminApplications,

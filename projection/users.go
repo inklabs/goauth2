@@ -12,6 +12,7 @@ import (
 type user struct {
 	UserID                      string
 	Username                    string
+	GrantingUserID              string
 	CreateTimestamp             uint64
 	IsAdmin                     bool
 	CanOnboardAdminApplications bool
@@ -38,14 +39,19 @@ func (a *Users) Accept(record *rangedb.Record) {
 		a.users[event.UserID] = &user{
 			UserID:          event.UserID,
 			Username:        event.Username,
+			GrantingUserID:  event.GrantingUserID,
 			CreateTimestamp: record.InsertTimestamp,
 		}
 
 	case *goauth2.UserWasGrantedAdministratorRole:
-		a.users[event.UserID].IsAdmin = true
+		if a.userExists(event.UserID) {
+			a.users[event.UserID].IsAdmin = true
+		}
 
 	case *goauth2.UserWasAuthorizedToOnBoardClientApplications:
-		a.users[event.UserID].CanOnboardAdminApplications = true
+		if a.userExists(event.UserID) {
+			a.users[event.UserID].CanOnboardAdminApplications = true
+		}
 
 	}
 }
@@ -66,4 +72,9 @@ func (a *Users) GetAll() []*user {
 	})
 
 	return users
+}
+
+func (a *Users) userExists(userID string) bool {
+	_, ok := a.users[userID]
+	return ok
 }

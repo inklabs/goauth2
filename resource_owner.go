@@ -100,22 +100,25 @@ func (a *resourceOwner) Handle(command Command) {
 func (a *resourceOwner) OnBoardUser(c OnBoardUser) {
 	if a.IsOnBoarded {
 		a.raise(OnBoardUserWasRejectedDueToExistingUser{
-			UserID: c.UserID,
+			UserID:         c.UserID,
+			GrantingUserID: c.GrantingUserID,
 		})
 		return
 	}
 
 	if securepass.IsInsecure(c.Password) {
 		a.raise(OnBoardUserWasRejectedDueToInsecurePassword{
-			UserID: c.UserID,
+			UserID:         c.UserID,
+			GrantingUserID: c.GrantingUserID,
 		})
 		return
 	}
 
 	a.raise(UserWasOnBoarded{
-		UserID:       c.UserID,
-		Username:     c.Username,
-		PasswordHash: GeneratePasswordHash(c.Password),
+		UserID:         c.UserID,
+		Username:       c.Username,
+		PasswordHash:   GeneratePasswordHash(c.Password),
+		GrantingUserID: c.GrantingUserID,
 	})
 }
 

@@ -4,15 +4,22 @@ package goauth2
 
 // OnBoardUser Events
 type UserWasOnBoarded struct {
-	UserID       string `json:"userID"`
-	Username     string `json:"username"`
-	PasswordHash string `json:"passwordHash"`
+	UserID         string `json:"userID"`
+	Username       string `json:"username"`
+	PasswordHash   string `json:"passwordHash"`
+	GrantingUserID string `json:"grantingUserID"`
+}
+type OnBoardUserWasRejectedDueToNonAdministrator struct {
+	UserID         string `json:"userID"`
+	GrantingUserID string `json:"grantingUserID"`
 }
 type OnBoardUserWasRejectedDueToExistingUser struct {
-	UserID string `json:"userID"`
+	UserID         string `json:"userID"`
+	GrantingUserID string `json:"grantingUserID"`
 }
 type OnBoardUserWasRejectedDueToInsecurePassword struct {
-	UserID string `json:"userID"`
+	UserID         string `json:"userID"`
+	GrantingUserID string `json:"grantingUserID"`
 }
 
 // GrantUserAdministratorRole Events

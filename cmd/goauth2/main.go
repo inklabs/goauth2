@@ -123,31 +123,39 @@ func initDB(goauth2App *goauth2.App, store rangedb.Store, goAuth2Host string) er
 		clientSecret = "c1e847aef925467290b4302e64f3de4e"
 	)
 
-	goauth2App.Dispatch(goauth2.OnBoardUser{
-		UserID:   userID,
-		Username: email,
-		Password: password,
-	})
-
-	goauth2App.Dispatch(goauth2.OnBoardUser{
-		UserID:   userID2,
-		Username: email2,
-		Password: password2,
-	})
-
 	ctx := context.Background()
-	_, err := store.Save(ctx, &rangedb.EventRecord{
-		Event: goauth2.UserWasGrantedAdministratorRole{
-			UserID:         userID,
-			GrantingUserID: userID,
+	_, err := store.Save(ctx,
+		&rangedb.EventRecord{
+			Event: goauth2.UserWasOnBoarded{
+				UserID:         userID,
+				Username:       email,
+				PasswordHash:   goauth2.GeneratePasswordHash(password),
+				GrantingUserID: userID,
+			},
+			Metadata: map[string]string{
+				"message": "epoch event",
+			},
 		},
-		Metadata: map[string]string{
-			"message": "epoch event",
+		&rangedb.EventRecord{
+			Event: goauth2.UserWasGrantedAdministratorRole{
+				UserID:         userID,
+				GrantingUserID: userID,
+			},
+			Metadata: map[string]string{
+				"message": "epoch event",
+			},
 		},
-	})
+	)
 	if err != nil {
 		return err
 	}
+
+	goauth2App.Dispatch(goauth2.OnBoardUser{
+		UserID:         userID2,
+		Username:       email2,
+		Password:       password2,
+		GrantingUserID: userID,
+	})
 
 	goauth2App.Dispatch(goauth2.AuthorizeUserToOnBoardClientApplications{
 		UserID:            userID,
