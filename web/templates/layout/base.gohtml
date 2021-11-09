@@ -30,6 +30,23 @@
     </div>
 </div>
 
+{{block "flash" .}}
+    {{ if index .Errors }}
+        <div class="callout alert">
+            {{ range index .Errors }}
+                <p>{{ . }}</p>
+            {{ end }}
+        </div>
+    {{ end }}
+    {{ if index .Messages }}
+        <div class="callout success">
+            {{ range index .Messages }}
+                <p>{{ . }}</p>
+            {{ end }}
+        </div>
+    {{ end }}
+{{end}}
+
 <div id="content">
     {{block "content" .}}{{end}}
 </div>

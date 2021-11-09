@@ -318,8 +318,7 @@ func TestAddUser(t *testing.T) {
 		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
 		assert.Contains(t, w.Body.String(), `Add User`)
 		require.Len(t, w.Result().Cookies(), 1)
-		csrfCookie := w.Result().Cookies()[0]
-		require.NotEmpty(t, csrfCookie.Value)
+		cookies := w.Result().Cookies()
 		csrfToken := csrfTokenFromBody(t, w.Body)
 
 		t.Run("adds a user", func(t *testing.T) {
@@ -336,7 +335,9 @@ func TestAddUser(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, uri.String(), strings.NewReader(params.Encode()))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-			r.AddCookie(csrfCookie)
+			for _, cookie := range cookies {
+				r.AddCookie(cookie)
+			}
 
 			// When
 			app.ServeHTTP(w, r)
@@ -345,13 +346,18 @@ func TestAddUser(t *testing.T) {
 			require.Equal(t, http.StatusFound, w.Result().StatusCode)
 			assert.Equal(t, "HTTP/1.1", w.Result().Proto)
 			require.Equal(t, "/admin/list-users", w.Header().Get("Location"))
+			require.Len(t, w.Result().Cookies(), 1)
+			cookies := w.Result().Cookies()
 
-			t.Run("list users contains newly created user", func(t *testing.T) {
+			t.Run("list users contains newly created user and flash message", func(t *testing.T) {
 				uri := url.URL{
 					Path: "/admin/list-users",
 				}
 				w := httptest.NewRecorder()
 				r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+				for _, cookie := range cookies {
+					r.AddCookie(cookie)
+				}
 
 				// When
 				app.ServeHTTP(w, r)
@@ -361,7 +367,7 @@ func TestAddUser(t *testing.T) {
 				actualBody := w.Body.String()
 				assert.Contains(t, actualBody, uuidGenerator.Get(1))
 				assert.Contains(t, actualBody, username)
-				// TODO: flash message user was created
+				assert.Contains(t, actualBody, fmt.Sprintf("User (%s) was added", username))
 			})
 		})
 
@@ -376,7 +382,9 @@ func TestAddUser(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, uri.String(), strings.NewReader(params.Encode()))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-			r.AddCookie(csrfCookie)
+			for _, cookie := range cookies {
+				r.AddCookie(cookie)
+			}
 
 			// When
 			app.ServeHTTP(w, r)
@@ -384,8 +392,49 @@ func TestAddUser(t *testing.T) {
 			// Then
 			require.Equal(t, http.StatusFound, w.Result().StatusCode)
 			assert.Equal(t, "HTTP/1.1", w.Result().Proto)
-			assert.Equal(t, "/admin/add-user", w.Header().Get("Location"))
-			// TODO: flash message failure due to missing username or password
+			require.Equal(t, "/admin/add-user", w.Header().Get("Location"))
+			require.Len(t, w.Result().Cookies(), 1)
+			cookies := w.Result().Cookies()
+
+			t.Run("flashes missing username or password message", func(t *testing.T) {
+				uri := url.URL{
+					Path: "/admin/add-user",
+				}
+				w := httptest.NewRecorder()
+				r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+				for _, cookie := range cookies {
+					r.AddCookie(cookie)
+				}
+
+				// When
+				app.ServeHTTP(w, r)
+
+				// Then
+				require.Equal(t, http.StatusOK, w.Result().StatusCode)
+				actualBody := w.Body.String()
+				assert.Contains(t, actualBody, "username or password are required")
+				require.Len(t, w.Result().Cookies(), 2)
+				cookies := w.Result().Cookies()
+
+				t.Run("dons not flash after showing once", func(t *testing.T) {
+					uri := url.URL{
+						Path: "/admin/add-user",
+					}
+					w := httptest.NewRecorder()
+					r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+					for _, cookie := range cookies {
+						r.AddCookie(cookie)
+					}
+
+					// When
+					app.ServeHTTP(w, r)
+
+					// Then
+					require.Equal(t, http.StatusOK, w.Result().StatusCode)
+					actualBody := w.Body.String()
+					assert.NotContains(t, actualBody, "username or password are required")
+				})
+			})
 		})
 
 		t.Run("errors when confirm_password does not match password", func(t *testing.T) {

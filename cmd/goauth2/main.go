@@ -27,7 +27,9 @@ func main() {
 
 	requestedOauth2Port := flag.Uint("port", 0, "port")
 	templatesPath := flag.String("templates", "", "optional templates path")
-	csrfAuthKey := flag.String("csrfAuthKey", shortuuid.New().String(), "optional templates path")
+	csrfAuthKey := flag.String("csrfAuthKey", shortuuid.New().String(), "csrf authentication key")
+	sessionAuthKey := flag.String("sessionAuthKey", shortuuid.New().String()+shortuuid.New().String(), "cookie session auth key (64 bytes)")
+	sessionEncryptionKey := flag.String("sessionEncryptionKey", shortuuid.New().String(), "cookie session encryption key (32 bytes)")
 	flag.Parse()
 
 	oAuth2Listener, err := getListener(*requestedOauth2Port)
@@ -47,6 +49,7 @@ func main() {
 		web.WithGoAuth2App(goAuth2App),
 		web.WithHost(oAuth2Listener.Addr().String()),
 		web.WithCSRFAuthKey([]byte(*csrfAuthKey)),
+		web.WithSessionKey([]byte(*sessionAuthKey), []byte(*sessionEncryptionKey)),
 	}
 
 	if *templatesPath != "" {

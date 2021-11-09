@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/shortuuid"
 
@@ -22,9 +23,10 @@ import (
 )
 
 const (
-	accessTokenTODO = "f5bb89d486ee458085e476871b177ff4"
-	expiresAtTODO   = 1574371565
-	AdminUserIDTODO = "873aeb9386724213b4c1410bce9f838c"
+	accessTokenTODO  = "f5bb89d486ee458085e476871b177ff4"
+	expiresAtTODO    = 1574371565
+	AdminUserIDTODO  = "873aeb9386724213b4c1410bce9f838c"
+	flashSessionName = "fmsg"
 )
 
 //go:embed static
@@ -36,13 +38,16 @@ var templates embed.FS
 const defaultHost = "0.0.0.0:8080"
 
 type webApp struct {
-	router        http.Handler
-	templateFS    fs.FS
-	goAuth2App    *goauth2.App
-	uuidGenerator shortuuid.Generator
-	csrfAuthKey   []byte
-	host          string
-	projections   struct {
+	router               http.Handler
+	templateFS           fs.FS
+	goAuth2App           *goauth2.App
+	uuidGenerator        shortuuid.Generator
+	sessionStore         sessions.Store
+	sessionAuthKey       []byte
+	sessionEncryptionKey []byte
+	csrfAuthKey          []byte
+	host                 string
+	projections          struct {
 		emailToUserID      *projection.EmailToUserID
 		clientApplications *projection.ClientApplications
 		users              *projection.Users
@@ -80,10 +85,18 @@ func WithUUIDGenerator(generator shortuuid.Generator) Option {
 	}
 }
 
-// WithCSRFAuthKey is a functional option to inject a CSRf authentication key
+// WithCSRFAuthKey is a functional option to inject a CSRF authentication key
 func WithCSRFAuthKey(csrfAuthKey []byte) Option {
 	return func(app *webApp) {
 		app.csrfAuthKey = csrfAuthKey
+	}
+}
+
+// WithSessionKey is a functional option to inject a session auth and encryption key
+func WithSessionKey(authenticationKey, encryptionKey []byte) Option {
+	return func(app *webApp) {
+		app.sessionAuthKey = authenticationKey
+		app.sessionEncryptionKey = encryptionKey
 	}
 }
 
@@ -95,10 +108,12 @@ func New(options ...Option) (*webApp, error) {
 	}
 
 	app := &webApp{
-		templateFS:    templates,
-		goAuth2App:    goAuth2App,
-		uuidGenerator: shortuuid.NewUUIDGenerator(),
-		host:          defaultHost,
+		templateFS:           templates,
+		goAuth2App:           goAuth2App,
+		uuidGenerator:        shortuuid.NewUUIDGenerator(),
+		sessionAuthKey:       []byte(shortuuid.NewUUIDGenerator().New() + shortuuid.NewUUIDGenerator().New()),
+		sessionEncryptionKey: []byte(shortuuid.NewUUIDGenerator().New()),
+		host:                 defaultHost,
 	}
 
 	for _, option := range options {
@@ -106,6 +121,11 @@ func New(options ...Option) (*webApp, error) {
 	}
 
 	err = app.validateCSRFAuthKey()
+	if err != nil {
+		return nil, err
+	}
+
+	err = app.initSessionStore()
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +148,19 @@ func (a *webApp) validateCSRFAuthKey() error {
 		return fmt.Errorf("invalid CSRF authentication key length")
 	}
 
+	return nil
+}
+
+func (a *webApp) initSessionStore() error {
+	if len(a.sessionAuthKey) != 64 {
+		return fmt.Errorf("invalid session authentication key length")
+	}
+
+	if len(a.sessionEncryptionKey) != 32 {
+		return fmt.Errorf("invalid session encryption key length")
+	}
+
+	a.sessionStore = sessions.NewCookieStore(a.sessionAuthKey, a.sessionEncryptionKey)
 	return nil
 }
 
@@ -179,17 +212,19 @@ func (a *webApp) login(w http.ResponseWriter, r *http.Request) {
 	scope := params.Get("scope")
 
 	a.renderTemplate(w, "login.gohtml", struct {
+		flashMessageVars
 		ClientId     string
 		RedirectURI  string
 		ResponseType string
 		Scope        string
 		State        string
 	}{
-		ClientId:     clientId,
-		RedirectURI:  redirectURI,
-		ResponseType: responseType,
-		Scope:        scope,
-		State:        state,
+		ClientId:         clientId,
+		RedirectURI:      redirectURI,
+		ResponseType:     responseType,
+		Scope:            scope,
+		State:            state,
+		flashMessageVars: a.getFlashMessageVars(w, r),
 	})
 }
 
@@ -200,6 +235,7 @@ type ClientApplication struct {
 }
 
 type listClientApplicationsTemplateVars struct {
+	flashMessageVars
 	ClientApplications []ClientApplication
 }
 
@@ -220,6 +256,11 @@ func (a *webApp) listClientApplications(w http.ResponseWriter, _ *http.Request) 
 	})
 }
 
+type flashMessageVars struct {
+	Errors   []string
+	Messages []string
+}
+
 type User struct {
 	UserID                      string
 	Username                    string
@@ -230,10 +271,11 @@ type User struct {
 }
 
 type listUsersTemplateVars struct {
+	flashMessageVars
 	Users []User
 }
 
-func (a *webApp) listUsers(w http.ResponseWriter, _ *http.Request) {
+func (a *webApp) listUsers(w http.ResponseWriter, r *http.Request) {
 
 	var users []User
 
@@ -249,19 +291,22 @@ func (a *webApp) listUsers(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	a.renderTemplate(w, "list-users.gohtml", listUsersTemplateVars{
-		Users: users,
+		Users:            users,
+		flashMessageVars: a.getFlashMessageVars(w, r),
 	})
 }
 
 type addUserTemplateVars struct {
+	flashMessageVars
 	Username  string
 	CSRFField template.HTML
 }
 
 func (a *webApp) showAddUser(w http.ResponseWriter, r *http.Request) {
 	a.renderTemplate(w, "add-user.gohtml", addUserTemplateVars{
-		Username:  "", // TODO: Add when form post fails on redirect
-		CSRFField: csrf.TemplateField(r),
+		Username:         "", // TODO: Add when form post fails on redirect
+		CSRFField:        csrf.TemplateField(r),
+		flashMessageVars: a.getFlashMessageVars(w, r),
 	})
 }
 
@@ -280,6 +325,7 @@ func (a *webApp) submitAddUser(w http.ResponseWriter, r *http.Request) {
 		redirectURI := url.URL{
 			Path: "/admin/add-user",
 		}
+		a.FlashError(w, r, "username or password are required")
 		http.Redirect(w, r, redirectURI.String(), http.StatusFound)
 		return
 	}
@@ -300,6 +346,8 @@ func (a *webApp) submitAddUser(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, redirectURI.String(), http.StatusFound)
 		return
 	}
+
+	a.FlashMessage(w, r, "User (%s) was added", username)
 
 	uri := url.URL{
 		Path: "/admin/list-users",
@@ -621,6 +669,43 @@ func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data
 		log.Printf("unable to render template %s: %v", templateName, err)
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
+	}
+}
+
+func (a *webApp) FlashError(w http.ResponseWriter, r *http.Request, format string, vars ...interface{}) {
+	a.flashMessage(w, r, "error", fmt.Sprintf(format, vars...))
+}
+
+func (a *webApp) FlashMessage(w http.ResponseWriter, r *http.Request, format string, vars ...interface{}) {
+	a.flashMessage(w, r, "message", fmt.Sprintf(format, vars...))
+}
+
+func (a *webApp) flashMessage(w http.ResponseWriter, r *http.Request, key, message string) {
+	session, _ := a.sessionStore.Get(r, flashSessionName)
+	session.AddFlash(message, key)
+	_ = session.Save(r, w)
+}
+
+func (a *webApp) getFlashMessageVars(w http.ResponseWriter, r *http.Request) flashMessageVars {
+	session, _ := a.sessionStore.Get(r, flashSessionName)
+	fErrors := session.Flashes("error")
+	fMessages := session.Flashes("message")
+
+	var flashErrors, flashMessages []string
+	for _, flash := range fErrors {
+		flashErrors = append(flashErrors, flash.(string))
+	}
+	for _, flash := range fMessages {
+		flashMessages = append(flashMessages, flash.(string))
+	}
+
+	if len(fErrors) > 0 || len(fMessages) > 0 {
+		_ = session.Save(r, w)
+	}
+
+	return flashMessageVars{
+		Errors:   flashErrors,
+		Messages: flashMessages,
 	}
 }
 
