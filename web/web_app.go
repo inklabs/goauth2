@@ -12,8 +12,10 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/inklabs/rangedb"
+	"github.com/inklabs/rangedb/pkg/shortuuid"
 
 	"github.com/inklabs/goauth2"
 	"github.com/inklabs/goauth2/projection"
@@ -22,6 +24,7 @@ import (
 const (
 	accessTokenTODO = "f5bb89d486ee458085e476871b177ff4"
 	expiresAtTODO   = 1574371565
+	AdminUserIDTODO = "873aeb9386724213b4c1410bce9f838c"
 )
 
 //go:embed static
@@ -33,11 +36,13 @@ var templates embed.FS
 const defaultHost = "0.0.0.0:8080"
 
 type webApp struct {
-	router      *mux.Router
-	templateFS  fs.FS
-	goAuth2App  *goauth2.App
-	host        string
-	projections struct {
+	router        http.Handler
+	templateFS    fs.FS
+	goAuth2App    *goauth2.App
+	uuidGenerator shortuuid.Generator
+	csrfAuthKey   []byte
+	host          string
+	projections   struct {
 		emailToUserID      *projection.EmailToUserID
 		clientApplications *projection.ClientApplications
 		users              *projection.Users
@@ -68,6 +73,20 @@ func WithHost(host string) Option {
 	}
 }
 
+// WithUUIDGenerator is a functional option to inject a shortuuid.Generator.
+func WithUUIDGenerator(generator shortuuid.Generator) Option {
+	return func(app *webApp) {
+		app.uuidGenerator = generator
+	}
+}
+
+// WithCSRFAuthKey is a functional option to inject a CSRf authentication key
+func WithCSRFAuthKey(csrfAuthKey []byte) Option {
+	return func(app *webApp) {
+		app.csrfAuthKey = csrfAuthKey
+	}
+}
+
 // New constructs an webApp.
 func New(options ...Option) (*webApp, error) {
 	goAuth2App, err := goauth2.New()
@@ -76,13 +95,19 @@ func New(options ...Option) (*webApp, error) {
 	}
 
 	app := &webApp{
-		templateFS: templates,
-		goAuth2App: goAuth2App,
-		host:       defaultHost,
+		templateFS:    templates,
+		goAuth2App:    goAuth2App,
+		uuidGenerator: shortuuid.NewUUIDGenerator(),
+		host:          defaultHost,
 	}
 
 	for _, option := range options {
 		option(app)
+	}
+
+	err = app.validateCSRFAuthKey()
+	if err != nil {
+		return nil, err
 	}
 
 	app.initRoutes()
@@ -94,14 +119,39 @@ func New(options ...Option) (*webApp, error) {
 	return app, nil
 }
 
+func (a *webApp) validateCSRFAuthKey() error {
+	if a.csrfAuthKey == nil {
+		return fmt.Errorf("missing CSRF authentication key")
+	}
+
+	if len(a.csrfAuthKey) != 32 {
+		return fmt.Errorf("invalid CSRF authentication key length")
+	}
+
+	return nil
+}
+
 func (a *webApp) initRoutes() {
-	a.router = mux.NewRouter().StrictSlash(true)
-	a.router.HandleFunc("/authorize", a.authorize)
-	a.router.HandleFunc("/login", a.login)
-	a.router.HandleFunc("/token", a.token)
-	a.router.HandleFunc("/list-client-applications", a.listClientApplications)
-	a.router.HandleFunc("/list-users", a.listUsers)
-	a.router.PathPrefix("/static/").Handler(http.FileServer(http.FS(staticAssets)))
+	r := mux.NewRouter().StrictSlash(true)
+	r.HandleFunc("/authorize", a.authorize)
+	r.HandleFunc("/login", a.login)
+	r.HandleFunc("/token", a.token)
+	r.PathPrefix("/static/").Handler(http.FileServer(http.FS(staticAssets)))
+
+	csrfMiddleware := csrf.Protect(
+		a.csrfAuthKey,
+		csrf.Secure(false),
+		csrf.SameSite(csrf.SameSiteStrictMode),
+	)
+
+	admin := r.PathPrefix("/admin").Subrouter()
+	admin.HandleFunc("/add-user", a.showAddUser).Methods(http.MethodGet)
+	admin.HandleFunc("/add-user", a.submitAddUser).Methods(http.MethodPost)
+	admin.HandleFunc("/list-users", a.listUsers)
+	admin.HandleFunc("/list-client-applications", a.listClientApplications)
+	admin.Use(csrfMiddleware)
+
+	a.router = r
 }
 
 func (a *webApp) initProjections() error {
@@ -201,6 +251,60 @@ func (a *webApp) listUsers(w http.ResponseWriter, _ *http.Request) {
 	a.renderTemplate(w, "list-users.gohtml", listUsersTemplateVars{
 		Users: users,
 	})
+}
+
+type addUserTemplateVars struct {
+	Username  string
+	CSRFField template.HTML
+}
+
+func (a *webApp) showAddUser(w http.ResponseWriter, r *http.Request) {
+	a.renderTemplate(w, "add-user.gohtml", addUserTemplateVars{
+		Username:  "", // TODO: Add when form post fails on redirect
+		CSRFField: csrf.TemplateField(r),
+	})
+}
+
+func (a *webApp) submitAddUser(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		writeInvalidRequestResponse(w)
+		return
+	}
+
+	username := r.Form.Get("username")
+	password := r.Form.Get("password")
+	// confirmPassword := r.Form.Get("confirm_password")
+
+	if username == "" || password == "" {
+		redirectURI := url.URL{
+			Path: "/admin/add-user",
+		}
+		http.Redirect(w, r, redirectURI.String(), http.StatusFound)
+		return
+	}
+
+	userID := a.uuidGenerator.New()
+	grantingUserID := AdminUserIDTODO // TODO: Get grantingUserID from JWT
+	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.OnBoardUser{
+		UserID:         userID,
+		Username:       username,
+		Password:       password,
+		GrantingUserID: grantingUserID,
+	}))
+	var userWasOnBoarded goauth2.UserWasOnBoarded
+	if !events.Get(&userWasOnBoarded) {
+		redirectURI := url.URL{
+			Path: "/admin/add-user",
+		}
+		http.Redirect(w, r, redirectURI.String(), http.StatusFound)
+		return
+	}
+
+	uri := url.URL{
+		Path: "/admin/list-users",
+	}
+	http.Redirect(w, r, uri.String(), http.StatusFound)
 }
 
 func (a *webApp) authorize(w http.ResponseWriter, r *http.Request) {

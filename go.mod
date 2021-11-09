@@ -6,6 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/google/uuid v1.3.0
+	github.com/gorilla/csrf v1.7.1
 	github.com/gorilla/handlers v1.4.2 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/inklabs/rangedb v0.12.1-0.20211102191110-c880f5f0baa1
@@ -22,6 +23,7 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.0.0 // indirect
-	github.com/fatih/structtag v1.2.0 // indirect
+	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 )

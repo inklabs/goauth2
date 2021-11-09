@@ -3,6 +3,7 @@ package web_test
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ import (
 	"github.com/inklabs/rangedb/rangedbtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/html"
 
 	"github.com/inklabs/goauth2"
 	"github.com/inklabs/goauth2/goauth2test"
@@ -52,6 +54,8 @@ const (
 	RefreshTokenGrant      = "refresh_token"
 	ImplicitGrant          = "token"
 	AuthorizationCodeGrant = "authorization_code"
+	csrfAuthKey            = "8e704d0069ca44388e135a62e1831d26"
+	gorillaCSRFTokenKey    = "gorilla.csrf.Token"
 )
 
 var (
@@ -62,11 +66,14 @@ var (
 )
 
 func Test_Login(t *testing.T) {
+	// Given
+	app, err := web.New(
+		web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+	)
+	require.NoError(t, err)
+
 	t.Run("serves login form", func(t *testing.T) {
 		// Given
-		app, err := web.New()
-		require.NoError(t, err)
-
 		uri := url.URL{
 			Path:     "/login",
 			RawQuery: getAuthorizeParams().Encode(),
@@ -91,9 +98,6 @@ func Test_Login(t *testing.T) {
 
 	t.Run("does not include OAuth2 parameters if token is not in the query parameters", func(t *testing.T) {
 		// Given
-		app, err := web.New()
-		require.NoError(t, err)
-
 		uri := url.URL{
 			Path: "/login",
 		}
@@ -118,6 +122,7 @@ func Test_Login(t *testing.T) {
 	t.Run("fails to serve login form from failing template filesystem", func(t *testing.T) {
 		// Given
 		app, err := web.New(
+			web.WithCSRFAuthKey([]byte(csrfAuthKey)),
 			web.WithTemplateFS(failingFilesystem{}),
 		)
 		require.NoError(t, err)
@@ -163,11 +168,12 @@ func TestListClientApplications(t *testing.T) {
 		require.NoError(t, err)
 		app, err := web.New(
 			web.WithGoAuth2App(goauth2App),
+			web.WithCSRFAuthKey([]byte(csrfAuthKey)),
 		)
 		require.NoError(t, err)
 
 		uri := url.URL{
-			Path: "/list-client-applications",
+			Path: "/admin/list-client-applications",
 		}
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
@@ -204,11 +210,12 @@ func TestListUsers(t *testing.T) {
 		require.NoError(t, err)
 		app, err := web.New(
 			web.WithGoAuth2App(goauth2App),
+			web.WithCSRFAuthKey([]byte(csrfAuthKey)),
 		)
 		require.NoError(t, err)
 
 		uri := url.URL{
-			Path: "/list-users",
+			Path: "/admin/list-users",
 		}
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
@@ -248,11 +255,12 @@ func TestListUsers(t *testing.T) {
 		require.NoError(t, err)
 		app, err := web.New(
 			web.WithGoAuth2App(goauth2App),
+			web.WithCSRFAuthKey([]byte(csrfAuthKey)),
 		)
 		require.NoError(t, err)
 
 		uri := url.URL{
-			Path: "/list-users",
+			Path: "/admin/list-users",
 		}
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
@@ -267,6 +275,145 @@ func TestListUsers(t *testing.T) {
 		assert.Contains(t, body, adminUserID)
 		assert.Contains(t, body, "Admin")
 		assert.Contains(t, body, userID2)
+	})
+}
+
+func TestAddUser(t *testing.T) {
+	// Given
+	eventStore := getStoreWithEvents(t,
+		goauth2.UserWasOnBoarded{
+			UserID:         adminUserID,
+			Username:       email,
+			PasswordHash:   passwordHash,
+			GrantingUserID: adminUserID,
+		},
+		goauth2.UserWasGrantedAdministratorRole{
+			UserID:         adminUserID,
+			GrantingUserID: adminUserID,
+		},
+	)
+	goauth2App, err := goauth2.New(goauth2.WithStore(eventStore))
+	require.NoError(t, err)
+	uuidGenerator := rangedbtest.NewSeededUUIDGenerator()
+	app, err := web.New(
+		web.WithGoAuth2App(goauth2App),
+		web.WithUUIDGenerator(uuidGenerator),
+		web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+	)
+	require.NoError(t, err)
+
+	t.Run("shows form", func(t *testing.T) {
+		// Given
+		uri := url.URL{
+			Path: "/admin/add-user",
+		}
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+		assert.Contains(t, w.Body.String(), `Add User`)
+		require.Len(t, w.Result().Cookies(), 1)
+		csrfCookie := w.Result().Cookies()[0]
+		require.NotEmpty(t, csrfCookie.Value)
+		csrfToken := csrfTokenFromBody(t, w.Body)
+
+		t.Run("adds a user", func(t *testing.T) {
+			// Given
+			params := &url.Values{}
+			params.Set("username", username)
+			params.Set("password", password)
+			params.Set("confirm_password", password)
+			params.Set(gorillaCSRFTokenKey, csrfToken)
+
+			uri := url.URL{
+				Path: "/admin/add-user",
+			}
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, uri.String(), strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+			r.AddCookie(csrfCookie)
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusFound, w.Result().StatusCode)
+			assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+			require.Equal(t, "/admin/list-users", w.Header().Get("Location"))
+
+			t.Run("list users contains newly created user", func(t *testing.T) {
+				uri := url.URL{
+					Path: "/admin/list-users",
+				}
+				w := httptest.NewRecorder()
+				r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+
+				// When
+				app.ServeHTTP(w, r)
+
+				// Then
+				require.Equal(t, http.StatusOK, w.Result().StatusCode)
+				actualBody := w.Body.String()
+				assert.Contains(t, actualBody, uuidGenerator.Get(1))
+				assert.Contains(t, actualBody, username)
+				// TODO: flash message user was created
+			})
+		})
+
+		t.Run("errors when username or password are missing", func(t *testing.T) {
+			// Given
+			params := &url.Values{}
+			params.Set(gorillaCSRFTokenKey, csrfToken)
+
+			uri := url.URL{
+				Path: "/admin/add-user",
+			}
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, uri.String(), strings.NewReader(params.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+			r.AddCookie(csrfCookie)
+
+			// When
+			app.ServeHTTP(w, r)
+
+			// Then
+			require.Equal(t, http.StatusFound, w.Result().StatusCode)
+			assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+			assert.Equal(t, "/admin/add-user", w.Header().Get("Location"))
+			// TODO: flash message failure due to missing username or password
+		})
+
+		t.Run("errors when confirm_password does not match password", func(t *testing.T) {
+			// Given
+
+			// When
+
+			// Then
+			// TODO: flash failure due to unmatched password
+		})
+
+		t.Run("errors from invalid form request", func(t *testing.T) {
+			// Given
+
+			// When
+
+			// Then
+			// TODO: flash failure due to invalid request
+		})
+
+		t.Run("errors from CSRF", func(t *testing.T) {
+			// Given
+
+			// When
+
+			// Then
+			// TODO: flash failure due to invalid request
+		})
 	})
 }
 
@@ -289,6 +436,7 @@ func Test_TokenEndpoint(t *testing.T) {
 		require.NoError(t, err)
 		app, err := web.New(
 			web.WithGoAuth2App(goauth2App),
+			web.WithCSRFAuthKey([]byte(csrfAuthKey)),
 		)
 		require.NoError(t, err)
 		params := &url.Values{}
@@ -382,7 +530,10 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goAuth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goAuth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
@@ -413,7 +564,10 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goAuth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goAuth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
@@ -436,7 +590,10 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goAuth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goAuth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader(params.Encode()))
@@ -459,7 +616,10 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goAuth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goAuth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
@@ -487,7 +647,10 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goAuth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goAuth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
@@ -676,13 +839,16 @@ func Test_TokenEndpoint(t *testing.T) {
 				},
 			)
 
-			goauth2App, err := goauth2.New(
+			goAuth2App, err := goauth2.New(
 				goauth2.WithStore(eventStore),
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goAuth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", AuthorizationCodeGrant)
@@ -728,13 +894,16 @@ func Test_TokenEndpoint(t *testing.T) {
 				},
 			)
 
-			goauth2App, err := goauth2.New(
+			goAuth2App, err := goauth2.New(
 				goauth2.WithStore(eventStore),
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goAuth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", AuthorizationCodeGrant)
@@ -765,7 +934,10 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithClock(seededclock.New(issueTime)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goAuth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goAuth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
@@ -816,7 +988,10 @@ func Test_TokenEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(refreshToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goAuth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goAuth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := &url.Values{}
 			params.Set("grant_type", ROPCGrant)
@@ -854,7 +1029,9 @@ func Test_TokenEndpoint(t *testing.T) {
 
 	t.Run("fails with invalid HTTP form request", func(t *testing.T) {
 		// Given
-		app, err := web.New()
+		app, err := web.New(
+			web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+		)
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodPost, tokenURI, strings.NewReader("%invalid-form"))
@@ -871,7 +1048,9 @@ func Test_TokenEndpoint(t *testing.T) {
 
 	t.Run("fails with unsupported grant type", func(t *testing.T) {
 		// Given
-		app, err := web.New()
+		app, err := web.New(
+			web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+		)
 		require.NoError(t, err)
 		params := &url.Values{}
 		params.Set("grant_type", "invalid-grant-type")
@@ -902,7 +1081,10 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goauth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 
@@ -922,7 +1104,9 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 
 		t.Run("fails with missing user", func(t *testing.T) {
 			// Given
-			app, err := web.New()
+			app, err := web.New(
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("username", "wrong-email@example.com")
@@ -948,7 +1132,10 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goauth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("client_id", "invalid-client-id")
@@ -973,7 +1160,10 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goauth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("redirect_uri", "https://wrong.example.com")
@@ -998,7 +1188,10 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(authorizationCode)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goauth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("username", "wrong@example.com")
@@ -1022,7 +1215,10 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goauth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("password", "wrong-pass")
@@ -1049,7 +1245,10 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goauth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
@@ -1076,7 +1275,10 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goauth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
@@ -1102,7 +1304,10 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithTokenGenerator(goauth2test.NewSeededTokenGenerator(accessToken)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goauth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
@@ -1122,7 +1327,9 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 
 		t.Run("fails with missing user", func(t *testing.T) {
 			// Given
-			app, err := web.New()
+			app, err := web.New(
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
@@ -1146,7 +1353,10 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 				goauth2.WithStore(getStoreWithClientApplicationAndUserOnBoarded(t)),
 			)
 			require.NoError(t, err)
-			app, err := web.New(web.WithGoAuth2App(goauth2App))
+			app, err := web.New(
+				web.WithGoAuth2App(goauth2App),
+				web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+			)
 			require.NoError(t, err)
 			params := getAuthorizeParams()
 			params.Set("response_type", ImplicitGrant)
@@ -1167,7 +1377,9 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 
 	t.Run("fails with invalid HTTP form request", func(t *testing.T) {
 		// Given
-		app, err := web.New()
+		app, err := web.New(
+			web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+		)
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodPost, authorizeURI, strings.NewReader("%invalid-form"))
@@ -1183,7 +1395,9 @@ func Test_AuthorizeEndpoint(t *testing.T) {
 
 	t.Run("fails with unsupported response type", func(t *testing.T) {
 		// Given
-		app, err := web.New()
+		app, err := web.New(
+			web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+		)
 		require.NoError(t, err)
 		params := getAuthorizeParams()
 		params.Set("response_type", "invalid-response-type")
@@ -1302,10 +1516,13 @@ func getAppWithAuthorizationCodeIssued(t *testing.T, options ...goauth2.Option) 
 		goauth2.WithClock(seededclock.New(issueTime)),
 	}, options...)
 
-	goauth2App, err := goauth2.New(options...)
+	goAuth2App, err := goauth2.New(options...)
 	require.NoError(t, err)
 
-	app, err := web.New(web.WithGoAuth2App(goauth2App))
+	app, err := web.New(
+		web.WithGoAuth2App(goAuth2App),
+		web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+	)
 	require.NoError(t, err)
 
 	return app
@@ -1362,4 +1579,32 @@ type failingFilesystem struct{}
 
 func (f failingFilesystem) Open(_ string) (fs.File, error) {
 	return nil, fmt.Errorf("failingFilesystem:Open")
+}
+
+func csrfTokenFromBody(t *testing.T, body io.Reader) string {
+	doc, err := html.Parse(body)
+	require.NoError(t, err)
+
+	var csrfToken string
+
+	var f func(*html.Node)
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "input" {
+			for _, attr := range n.Attr {
+				if attr.Key == "name" && attr.Val == gorillaCSRFTokenKey {
+					for _, attr := range n.Attr {
+						if attr.Key == "value" {
+							csrfToken = attr.Val
+						}
+					}
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+	f(doc)
+
+	return csrfToken
 }

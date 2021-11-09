@@ -14,6 +14,7 @@ import (
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/rangedbapi"
 	"github.com/inklabs/rangedb/pkg/rangedbui"
+	"github.com/inklabs/rangedb/pkg/shortuuid"
 	"github.com/inklabs/rangedb/provider/inmemorystore"
 
 	"github.com/inklabs/goauth2"
@@ -26,6 +27,7 @@ func main() {
 
 	requestedOauth2Port := flag.Uint("port", 0, "port")
 	templatesPath := flag.String("templates", "", "optional templates path")
+	csrfAuthKey := flag.String("csrfAuthKey", shortuuid.New().String(), "optional templates path")
 	flag.Parse()
 
 	oAuth2Listener, err := getListener(*requestedOauth2Port)
@@ -44,6 +46,7 @@ func main() {
 	goAuth2WebAppOptions := []web.Option{
 		web.WithGoAuth2App(goAuth2App),
 		web.WithHost(oAuth2Listener.Addr().String()),
+		web.WithCSRFAuthKey([]byte(*csrfAuthKey)),
 	}
 
 	if *templatesPath != "" {
@@ -113,7 +116,6 @@ func getListener(port uint) (net.Listener, error) {
 
 func initDB(goauth2App *goauth2.App, store rangedb.Store, goAuth2Host string) error {
 	const (
-		userID       = "445a57a41b7b43e285b51e99bba10a79"
 		email        = "john@example.com"
 		password     = "Pass123"
 		userID2      = "03e16d6469bc4d07b4d0c832380e20ce"
@@ -122,6 +124,8 @@ func initDB(goauth2App *goauth2.App, store rangedb.Store, goAuth2Host string) er
 		clientID     = "8895e1e5f06644ebb41c26ea5740b246"
 		clientSecret = "c1e847aef925467290b4302e64f3de4e"
 	)
+
+	userID := web.AdminUserIDTODO
 
 	ctx := context.Background()
 	_, err := store.Save(ctx,
