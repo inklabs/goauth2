@@ -68,6 +68,10 @@ func (a *Users) GetAll() []*user {
 	a.mu.RUnlock()
 
 	sort.SliceStable(users, func(i, j int) bool {
+		if users[i].CreateTimestamp == users[j].CreateTimestamp {
+			return users[i].UserID < users[j].UserID
+		}
+
 		return users[i].CreateTimestamp >= users[j].CreateTimestamp
 	})
 

@@ -25,7 +25,7 @@ func TestUsers_Accept(t *testing.T) {
 	issueTime := time.Date(2020, 05, 11, 8, 0, 0, 0, time.UTC)
 	issueTime2 := time.Date(2020, 05, 12, 8, 0, 0, 0, time.UTC)
 
-	t.Run("can get all users ordered by creation timestamp", func(t *testing.T) {
+	t.Run("can get all users ordered by descending creation timestamp", func(t *testing.T) {
 		// Given
 		users := projection.NewUsers()
 		record1 := rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
@@ -51,6 +51,31 @@ func TestUsers_Accept(t *testing.T) {
 		assert.Equal(t, userID2, actualUsers[0].UserID)
 		assert.Equal(t, username2, actualUsers[0].Username)
 		assert.Equal(t, uint64(issueTime2.Unix()), actualUsers[0].CreateTimestamp)
+	})
+
+	t.Run("can get all users ordered by creation timestamp, then by ascending userID", func(t *testing.T) {
+		// Given
+		users := projection.NewUsers()
+		record1 := rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
+			UserID:       userID,
+			Username:     username,
+			PasswordHash: passwordHash,
+		})
+		record2 := rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
+			UserID:       userID2,
+			Username:     username2,
+			PasswordHash: passwordHash,
+		})
+		users.Accept(record2)
+		users.Accept(record1)
+
+		// When
+		actualUsers := users.GetAll()
+
+		// Then
+		assert.Len(t, actualUsers, 2)
+		assert.Equal(t, userID2, actualUsers[0].UserID)
+		assert.Equal(t, username2, actualUsers[0].Username)
 	})
 
 	t.Run("includes admin flag", func(t *testing.T) {
