@@ -30,6 +30,8 @@ func main() {
 	csrfAuthKey := flag.String("csrfAuthKey", string(securecookie.GenerateRandomKey(32)), "csrf authentication key")
 	sessionAuthKey := flag.String("sessionAuthKey", string(securecookie.GenerateRandomKey(64)), "cookie session auth key (64 bytes)")
 	sessionEncryptionKey := flag.String("sessionEncryptionKey", string(securecookie.GenerateRandomKey(32)), "cookie session encryption key (32 bytes)")
+	previousSessionAuthKey := flag.String("previousSessionAuthKey", "", "previous 64 byte cookie session auth key (used for key rotation)")
+	previousSessionEncryptionKey := flag.String("previousSessionEncryptionKey", "", "previous 32 byte cookie session encryption key (used for key rotation)")
 	flag.Parse()
 
 	oAuth2Listener, err := getListener(*requestedOauth2Port)
@@ -45,11 +47,25 @@ func main() {
 		log.Fatal(err)
 	}
 
+	sessionKeyPairs := []web.SessionKeyPair{
+		{
+			AuthenticationKey: []byte(*sessionAuthKey),
+			EncryptionKey:     []byte(*sessionEncryptionKey),
+		},
+	}
+
+	if *previousSessionAuthKey != "" && *previousSessionEncryptionKey != "" {
+		sessionKeyPairs = append(sessionKeyPairs, web.SessionKeyPair{
+			AuthenticationKey: []byte(*previousSessionAuthKey),
+			EncryptionKey:     []byte(*previousSessionEncryptionKey),
+		})
+	}
+
 	goAuth2WebAppOptions := []web.Option{
 		web.WithGoAuth2App(goAuth2App),
 		web.WithHost(oAuth2Listener.Addr().String()),
 		web.WithCSRFAuthKey([]byte(*csrfAuthKey)),
-		web.WithSessionKey([]byte(*sessionAuthKey), []byte(*sessionEncryptionKey)),
+		web.WithSessionKeyPair(sessionKeyPairs...),
 	}
 
 	if *templatesPath != "" {

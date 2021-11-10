@@ -35,17 +35,21 @@ var templates embed.FS
 
 const defaultHost = "0.0.0.0:8080"
 
+type SessionKeyPair struct {
+	AuthenticationKey []byte
+	EncryptionKey     []byte
+}
+
 type webApp struct {
-	router               http.Handler
-	templateFS           fs.FS
-	goAuth2App           *goauth2.App
-	uuidGenerator        shortuuid.Generator
-	sessionStore         sessions.Store
-	sessionAuthKey       []byte
-	sessionEncryptionKey []byte
-	csrfAuthKey          []byte
-	host                 string
-	projections          struct {
+	router          http.Handler
+	templateFS      fs.FS
+	goAuth2App      *goauth2.App
+	uuidGenerator   shortuuid.Generator
+	sessionStore    sessions.Store
+	sessionKeyPairs []SessionKeyPair
+	csrfAuthKey     []byte
+	host            string
+	projections     struct {
 		emailToUserID      *projection.EmailToUserID
 		clientApplications *projection.ClientApplications
 		users              *projection.Users
@@ -62,7 +66,7 @@ func WithTemplateFS(f fs.FS) Option {
 	}
 }
 
-// WithGoAuth2App is a functional option to inject a goauth2 application.
+// WithGoAuth2App is a functional option to inject a goauth2.App.
 func WithGoAuth2App(goAuth2App *goauth2.App) Option {
 	return func(app *webApp) {
 		app.goAuth2App = goAuth2App
@@ -90,13 +94,12 @@ func WithCSRFAuthKey(csrfAuthKey []byte) Option {
 	}
 }
 
-// WithSessionKey is a functional option to inject a session auth and encryption key
-// TODO: support rotating session keys:
-// https://github.com/gorilla/sessions/blob/9cb0b0a3e38d07f41143f03013eaf0a3243fb474/doc.go#L164
-func WithSessionKey(authenticationKey, encryptionKey []byte) Option {
+// WithSessionKeyPair is a functional option to inject a session key pair.
+//  Useful for rotating session authentication and encryption keys. Old sessions can still
+//  be read because the first pair will fail, and the second will be tested.
+func WithSessionKeyPair(sessionKeyPairs ...SessionKeyPair) Option {
 	return func(app *webApp) {
-		app.sessionAuthKey = authenticationKey
-		app.sessionEncryptionKey = encryptionKey
+		app.sessionKeyPairs = sessionKeyPairs
 	}
 }
 
@@ -150,15 +153,24 @@ func (a *webApp) validateCSRFAuthKey() error {
 }
 
 func (a *webApp) initSessionStore() error {
-	if len(a.sessionAuthKey) != 64 {
-		return fmt.Errorf("invalid session authentication key length")
+	var keyPairs [][]byte
+
+	for _, sessionKeyPair := range a.sessionKeyPairs {
+		if len(sessionKeyPair.AuthenticationKey) != 64 {
+			return fmt.Errorf("invalid session authentication key length")
+		}
+
+		if len(sessionKeyPair.EncryptionKey) != 32 {
+			return fmt.Errorf("invalid session encryption key length")
+		}
+
+		keyPairs = append(keyPairs,
+			sessionKeyPair.AuthenticationKey,
+			sessionKeyPair.EncryptionKey,
+		)
 	}
 
-	if len(a.sessionEncryptionKey) != 32 {
-		return fmt.Errorf("invalid session encryption key length")
-	}
-
-	a.sessionStore = sessions.NewCookieStore(a.sessionAuthKey, a.sessionEncryptionKey)
+	a.sessionStore = sessions.NewCookieStore(keyPairs...)
 	return nil
 }
 

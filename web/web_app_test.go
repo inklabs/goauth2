@@ -1531,7 +1531,10 @@ func newApp(t *testing.T, options ...web.Option) http.Handler {
 
 	options = append([]web.Option{
 		web.WithCSRFAuthKey(csrfAuthenticationKey),
-		web.WithSessionKey(authenticationKey, encryptionKey),
+		web.WithSessionKeyPair(web.SessionKeyPair{
+			AuthenticationKey: authenticationKey,
+			EncryptionKey:     encryptionKey,
+		}),
 	}, options...)
 
 	app, err := web.New(options...)
