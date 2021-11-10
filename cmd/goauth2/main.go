@@ -11,10 +11,10 @@ import (
 	"os"
 	"text/template"
 
+	"github.com/gorilla/securecookie"
 	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/rangedbapi"
 	"github.com/inklabs/rangedb/pkg/rangedbui"
-	"github.com/inklabs/rangedb/pkg/shortuuid"
 	"github.com/inklabs/rangedb/provider/inmemorystore"
 
 	"github.com/inklabs/goauth2"
@@ -27,9 +27,9 @@ func main() {
 
 	requestedOauth2Port := flag.Uint("port", 0, "port")
 	templatesPath := flag.String("templates", "", "optional templates path")
-	csrfAuthKey := flag.String("csrfAuthKey", shortuuid.New().String(), "csrf authentication key")
-	sessionAuthKey := flag.String("sessionAuthKey", shortuuid.New().String()+shortuuid.New().String(), "cookie session auth key (64 bytes)")
-	sessionEncryptionKey := flag.String("sessionEncryptionKey", shortuuid.New().String(), "cookie session encryption key (32 bytes)")
+	csrfAuthKey := flag.String("csrfAuthKey", string(securecookie.GenerateRandomKey(32)), "csrf authentication key")
+	sessionAuthKey := flag.String("sessionAuthKey", string(securecookie.GenerateRandomKey(64)), "cookie session auth key (64 bytes)")
+	sessionEncryptionKey := flag.String("sessionEncryptionKey", string(securecookie.GenerateRandomKey(32)), "cookie session encryption key (32 bytes)")
 	flag.Parse()
 
 	oAuth2Listener, err := getListener(*requestedOauth2Port)

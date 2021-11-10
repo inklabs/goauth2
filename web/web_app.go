@@ -108,12 +108,10 @@ func New(options ...Option) (*webApp, error) {
 	}
 
 	app := &webApp{
-		templateFS:           templates,
-		goAuth2App:           goAuth2App,
-		uuidGenerator:        shortuuid.NewUUIDGenerator(),
-		sessionAuthKey:       []byte(shortuuid.NewUUIDGenerator().New() + shortuuid.NewUUIDGenerator().New()),
-		sessionEncryptionKey: []byte(shortuuid.NewUUIDGenerator().New()),
-		host:                 defaultHost,
+		templateFS:    templates,
+		goAuth2App:    goAuth2App,
+		uuidGenerator: shortuuid.NewUUIDGenerator(),
+		host:          defaultHost,
 	}
 
 	for _, option := range options {
