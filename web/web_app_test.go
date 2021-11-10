@@ -430,6 +430,29 @@ func TestAddUser(t *testing.T) {
 	})
 }
 
+func TestAdmin_Login(t *testing.T) {
+	// Given
+	app := newApp(t)
+
+	t.Run("serves login form", func(t *testing.T) {
+		// Given
+		uri := url.URL{
+			Path: "/admin/login",
+		}
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		body := w.Body.String()
+		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+		assert.Contains(t, body, "form")
+	})
+}
+
 func Test_TokenEndpoint(t *testing.T) {
 	const tokenURI = "/token"
 	t.Run("Client Credentials Grant Type with client application on-boarded", func(t *testing.T) {

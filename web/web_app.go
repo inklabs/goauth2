@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"time"
 
@@ -188,6 +189,7 @@ func (a *webApp) initRoutes() {
 	)
 
 	admin := r.PathPrefix("/admin").Subrouter()
+	admin.HandleFunc("/login", a.showAdminLogin).Methods(http.MethodGet)
 	admin.HandleFunc("/add-user", a.showAddUser).Methods(http.MethodGet)
 	admin.HandleFunc("/add-user", a.submitAddUser).Methods(http.MethodPost)
 	admin.HandleFunc("/list-users", a.listUsers)
@@ -261,7 +263,7 @@ func (a *webApp) listClientApplications(w http.ResponseWriter, _ *http.Request) 
 		})
 	}
 
-	a.renderTemplate(w, "list-client-applications.gohtml", listClientApplicationsTemplateVars{
+	a.renderTemplate(w, "admin/list-client-applications.gohtml", listClientApplicationsTemplateVars{
 		ClientApplications: clientApplications,
 	})
 }
@@ -300,8 +302,22 @@ func (a *webApp) listUsers(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	a.renderTemplate(w, "list-users.gohtml", listUsersTemplateVars{
+	a.renderTemplate(w, "admin/list-users.gohtml", listUsersTemplateVars{
 		Users:            users,
+		flashMessageVars: a.getFlashMessageVars(w, r),
+	})
+}
+
+type adminLoginTemplateVars struct {
+	flashMessageVars
+	Username  string
+	CSRFField template.HTML
+}
+
+func (a *webApp) showAdminLogin(w http.ResponseWriter, r *http.Request) {
+	a.renderTemplate(w, "admin/login.gohtml", adminLoginTemplateVars{
+		Username:         "", // TODO: Add when form post fails on redirect
+		CSRFField:        csrf.TemplateField(r),
 		flashMessageVars: a.getFlashMessageVars(w, r),
 	})
 }
@@ -313,7 +329,7 @@ type addUserTemplateVars struct {
 }
 
 func (a *webApp) showAddUser(w http.ResponseWriter, r *http.Request) {
-	a.renderTemplate(w, "add-user.gohtml", addUserTemplateVars{
+	a.renderTemplate(w, "admin/add-user.gohtml", addUserTemplateVars{
 		Username:         "", // TODO: Add when form post fails on redirect
 		CSRFField:        csrf.TemplateField(r),
 		flashMessageVars: a.getFlashMessageVars(w, r),
@@ -667,7 +683,8 @@ func (a *webApp) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *htt
 }
 
 func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data interface{}) {
-	tmpl, err := template.New(templateName).Funcs(FuncMap).ParseFS(a.templateFS, "templates/layout/*.gohtml", "templates/"+templateName)
+	baseTemplateName := path.Base(templateName)
+	tmpl, err := template.New(baseTemplateName).Funcs(FuncMap).ParseFS(a.templateFS, "templates/layout/*.gohtml", "templates/"+templateName)
 	if err != nil {
 		log.Printf("unable to parse template %s: %v", templateName, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
