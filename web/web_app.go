@@ -9,13 +9,12 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
-	"github.com/inklabs/rangedb"
 	"github.com/inklabs/rangedb/pkg/shortuuid"
 
 	"github.com/inklabs/goauth2"
@@ -23,10 +22,9 @@ import (
 )
 
 const (
-	accessTokenTODO  = "f5bb89d486ee458085e476871b177ff4"
-	expiresAtTODO    = 1574371565
-	AdminUserIDTODO  = "873aeb9386724213b4c1410bce9f838c"
-	flashSessionName = "fmsg"
+	accessTokenTODO = "f5bb89d486ee458085e476871b177ff4"
+	expiresAtTODO   = 1574371565
+	AdminUserIDTODO = "873aeb9386724213b4c1410bce9f838c"
 )
 
 //go:embed static
@@ -93,6 +91,8 @@ func WithCSRFAuthKey(csrfAuthKey []byte) Option {
 }
 
 // WithSessionKey is a functional option to inject a session auth and encryption key
+// TODO: support rotating session keys:
+// https://github.com/gorilla/sessions/blob/9cb0b0a3e38d07f41143f03013eaf0a3243fb474/doc.go#L164
 func WithSessionKey(authenticationKey, encryptionKey []byte) Option {
 	return func(app *webApp) {
 		app.sessionAuthKey = authenticationKey
@@ -167,7 +167,7 @@ func (a *webApp) initRoutes() {
 	r.HandleFunc("/authorize", a.authorize)
 	r.HandleFunc("/login", a.login)
 	r.HandleFunc("/token", a.token)
-	r.PathPrefix("/static/").Handler(http.FileServer(http.FS(staticAssets)))
+	r.PathPrefix("/static/").Handler(cache30Days(http.FileServer(http.FS(staticAssets))))
 
 	csrfMiddleware := csrf.Protect(
 		a.csrfAuthKey,
@@ -670,43 +670,6 @@ func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data
 	}
 }
 
-func (a *webApp) FlashError(w http.ResponseWriter, r *http.Request, format string, vars ...interface{}) {
-	a.flashMessage(w, r, "error", fmt.Sprintf(format, vars...))
-}
-
-func (a *webApp) FlashMessage(w http.ResponseWriter, r *http.Request, format string, vars ...interface{}) {
-	a.flashMessage(w, r, "message", fmt.Sprintf(format, vars...))
-}
-
-func (a *webApp) flashMessage(w http.ResponseWriter, r *http.Request, key, message string) {
-	session, _ := a.sessionStore.Get(r, flashSessionName)
-	session.AddFlash(message, key)
-	_ = session.Save(r, w)
-}
-
-func (a *webApp) getFlashMessageVars(w http.ResponseWriter, r *http.Request) flashMessageVars {
-	session, _ := a.sessionStore.Get(r, flashSessionName)
-	fErrors := session.Flashes("error")
-	fMessages := session.Flashes("message")
-
-	var flashErrors, flashMessages []string
-	for _, flash := range fErrors {
-		flashErrors = append(flashErrors, flash.(string))
-	}
-	for _, flash := range fMessages {
-		flashMessages = append(flashMessages, flash.(string))
-	}
-
-	if len(fErrors) > 0 || len(fMessages) > 0 {
-		_ = session.Save(r, w)
-	}
-
-	return flashMessageVars{
-		Errors:   flashErrors,
-		Messages: flashMessages,
-	}
-}
-
 type errorResponse struct {
 	Error string `json:"error"`
 }
@@ -753,55 +716,10 @@ func errorRedirect(w http.ResponseWriter, r *http.Request, redirectURI, errorMes
 	http.Redirect(w, r, uri, http.StatusFound)
 }
 
-// SavedEvents contains events that have been persisted to the event store.
-type SavedEvents []rangedb.Event
-
-// Contains returns true if all events are found.
-func (l *SavedEvents) Contains(events ...rangedb.Event) bool {
-	var totalFound int
-	for _, event := range events {
-		for _, savedEvent := range *l {
-			if event.EventType() == savedEvent.EventType() {
-				totalFound++
-				break
-			}
-		}
-	}
-	return len(events) == totalFound
-}
-
-// ContainsAny returns true if any events are found.
-func (l *SavedEvents) ContainsAny(events ...rangedb.Event) bool {
-	for _, event := range events {
-		for _, savedEvent := range *l {
-			if event.EventType() == savedEvent.EventType() {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// Get returns true if the event was found and stores the result
-// in the value pointed to by event. If it is not found, Get
-// returns false.
-func (l *SavedEvents) Get(event rangedb.Event) bool {
-	for _, savedEvent := range *l {
-		if event.EventType() == savedEvent.EventType() {
-			eventVal := reflect.ValueOf(event)
-			savedEventVal := reflect.ValueOf(savedEvent)
-
-			if savedEventVal.Kind() == reflect.Ptr {
-				savedEventVal = savedEventVal.Elem()
-			}
-
-			if savedEventVal.Type().AssignableTo(eventVal.Type().Elem()) {
-				eventVal.Elem().Set(savedEventVal)
-				return true
-			}
-		}
-	}
-
-	return false
+func cache30Days(s http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		thirtyDays := time.Hour * 24 * 30
+		w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", thirtyDays))
+		s.ServeHTTP(w, r)
+	})
 }
