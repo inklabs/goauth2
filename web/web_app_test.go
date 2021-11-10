@@ -55,7 +55,6 @@ const (
 	RefreshTokenGrant      = "refresh_token"
 	ImplicitGrant          = "token"
 	AuthorizationCodeGrant = "authorization_code"
-	csrfAuthKey            = "8e704d0069ca44388e135a62e1831d26"
 	gorillaCSRFTokenKey    = "gorilla.csrf.Token"
 )
 
@@ -1526,11 +1525,12 @@ func getAppWithAuthorizationCodeIssued(t *testing.T, options ...goauth2.Option) 
 }
 
 func newApp(t *testing.T, options ...web.Option) http.Handler {
+	csrfAuthenticationKey := securecookie.GenerateRandomKey(32)
 	authenticationKey := securecookie.GenerateRandomKey(64)
 	encryptionKey := securecookie.GenerateRandomKey(32)
 
 	options = append([]web.Option{
-		web.WithCSRFAuthKey([]byte(csrfAuthKey)),
+		web.WithCSRFAuthKey(csrfAuthenticationKey),
 		web.WithSessionKey(authenticationKey, encryptionKey),
 	}, options...)
 
