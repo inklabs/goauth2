@@ -81,6 +81,18 @@ func (a *Users) GetAll() []*user {
 	return users
 }
 
+// Get returns a user by userID if found.
+func (a *Users) Get(userID string) (*user, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	if u, ok := a.users[userID]; ok {
+		return u, nil
+	}
+
+	return nil, ErrUserNotFound
+}
+
 func (a *Users) userExists(userID string) bool {
 	_, ok := a.users[userID]
 	return ok

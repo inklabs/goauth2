@@ -2,6 +2,7 @@ package web
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 
@@ -11,9 +12,6 @@ import (
 	"github.com/inklabs/goauth2"
 )
 
-// AdminUserIDTODO temporary ID that will be replaced with a value from a JWT or session.
-const AdminUserIDTODO = "873aeb9386724213b4c1410bce9f838c"
-
 func (a *webApp) addAdminRoutes(r *mux.Router) {
 	csrfMiddleware := csrf.Protect(
 		a.csrfAuthKey,
@@ -21,13 +19,18 @@ func (a *webApp) addAdminRoutes(r *mux.Router) {
 		csrf.SameSite(csrf.SameSiteStrictMode),
 	)
 
+	r.HandleFunc("/admin-login", a.showAdminLogin).Methods(http.MethodGet)
+	r.HandleFunc("/admin-login", a.submitAdminLogin).Methods(http.MethodPost)
+
 	admin := r.PathPrefix("/admin").Subrouter()
-	admin.HandleFunc("/login", a.showAdminLogin).Methods(http.MethodGet)
 	admin.HandleFunc("/add-user", a.showAddUser).Methods(http.MethodGet)
 	admin.HandleFunc("/add-user", a.submitAddUser).Methods(http.MethodPost)
 	admin.HandleFunc("/list-users", a.listUsers)
 	admin.HandleFunc("/list-client-applications", a.listClientApplications)
-	admin.Use(csrfMiddleware)
+	admin.Use(
+		a.authMiddleware,
+		csrfMiddleware,
+	)
 }
 
 type clientApplication struct {
@@ -112,6 +115,67 @@ func (a *webApp) showAdminLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (a *webApp) submitAdminLogin(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
+	if err != nil {
+		writeInvalidRequestResponse(w)
+		return
+	}
+
+	username := r.Form.Get("username")
+	password := r.Form.Get("password")
+	redirectURI := r.Form.Get("redirect")
+
+	userID, err := a.projections.emailToUserID.GetUserID(username)
+	if err != nil {
+		writeInvalidRequestResponse(w)
+		return
+	}
+
+	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.RequestAccessTokenViaROPCGrant{
+		UserID:       userID,
+		ClientID:     ClientIDTODO,
+		ClientSecret: ClientSecretTODO,
+		Username:     username,
+		Password:     password,
+		Scope:        "read_write",
+	}))
+	var accessTokenEvent goauth2.AccessTokenWasIssuedToUserViaROPCGrant
+	if !events.Get(&accessTokenEvent) {
+		writeInvalidRequestResponse(w)
+		return
+	}
+
+	user, err := a.projections.users.Get(userID)
+	if err != nil {
+		writeInvalidRequestResponse(w)
+		return
+	}
+
+	session, _ := a.sessionStore.Get(r, sessionName)
+	session.Values["userID"] = userID
+	session.Values["username"] = username
+	session.Values["isAdmin"] = user.IsAdmin
+	err = session.Save(r, w)
+	if err != nil {
+		writeInvalidRequestResponse(w)
+		log.Print("save session")
+		return
+	}
+
+	if redirectURI == "" {
+		redirectURI = "/admin/list-users"
+	}
+
+	uri, err := url.Parse(redirectURI)
+	if err != nil {
+		writeInvalidRequestResponse(w)
+		return
+	}
+
+	http.Redirect(w, r, uri.String(), http.StatusSeeOther)
+}
+
 type addUserTemplateVars struct {
 	flashMessageVars
 	Username  string
@@ -146,8 +210,11 @@ func (a *webApp) submitAddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: Get access to well defined user struct from session
+	session, _ := a.sessionStore.Get(r, sessionName)
+	grantingUserID := session.Values["userID"].(string)
+
 	userID := a.uuidGenerator.New()
-	grantingUserID := AdminUserIDTODO // TODO: Get grantingUserID from JWT
 	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.OnBoardUser{
 		UserID:         userID,
 		Username:       username,

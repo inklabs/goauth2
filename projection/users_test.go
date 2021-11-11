@@ -7,6 +7,7 @@ import (
 
 	"github.com/inklabs/rangedb/rangedbtest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/inklabs/goauth2"
 	"github.com/inklabs/goauth2/projection"
@@ -161,5 +162,43 @@ func TestUsers_Accept(t *testing.T) {
 		wg.Wait()
 		actualUsers := users.GetAll()
 		assert.Len(t, actualUsers, 2)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		t.Run("returns user by userID", func(t *testing.T) {
+			// Given
+			users := projection.NewUsers()
+			record := rangedbtest.DummyRecordFromEvent(&goauth2.UserWasOnBoarded{
+				UserID:         userID,
+				Username:       username,
+				PasswordHash:   passwordHash,
+				GrantingUserID: adminUserID,
+			})
+			users.Accept(record)
+
+			// When
+			actualUser, err := users.Get(userID)
+
+			// Then
+			require.NoError(t, err)
+			assert.Equal(t, userID, actualUser.UserID)
+			assert.Equal(t, username, actualUser.Username)
+			assert.Equal(t, adminUserID, actualUser.GrantingUserID)
+			assert.False(t, actualUser.IsAdmin)
+			assert.False(t, actualUser.CanOnboardAdminApplications)
+		})
+
+		t.Run("returns user not found", func(t *testing.T) {
+			// Given
+			const notFoundID = "af5aa3e15b2a47aca0f5af0e7437ce3f"
+			users := projection.NewUsers()
+
+			// When
+			actualUser, err := users.Get(notFoundID)
+
+			// Then
+			assert.Nil(t, actualUser)
+			assert.Equal(t, projection.ErrUserNotFound, err)
+		})
 	})
 }

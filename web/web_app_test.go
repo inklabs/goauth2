@@ -122,6 +122,21 @@ func TestListClientApplications(t *testing.T) {
 	t.Run("list 2 client applications", func(t *testing.T) {
 		// Given
 		eventStore := getStoreWithEvents(t,
+			goauth2.UserWasOnBoarded{
+				UserID:       adminUserID,
+				Username:     username,
+				PasswordHash: passwordHash,
+			},
+			goauth2.UserWasGrantedAdministratorRole{
+				UserID:         adminUserID,
+				GrantingUserID: adminUserID,
+			},
+			goauth2.ClientApplicationWasOnBoarded{
+				ClientID:     web.ClientIDTODO,
+				ClientSecret: web.ClientSecretTODO,
+				RedirectURI:  redirectURI,
+				UserID:       userID,
+			},
 			goauth2.ClientApplicationWasOnBoarded{
 				ClientID:     clientID,
 				ClientSecret: clientSecret,
@@ -141,12 +156,14 @@ func TestListClientApplications(t *testing.T) {
 		app := newApp(t,
 			web.WithGoAuth2App(goAuth2App),
 		)
+		loggedInCookies := loginAdminUser(t, app, username, password)
 
 		uri := url.URL{
 			Path: "/admin/list-client-applications",
 		}
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+		addCookies(r, loggedInCookies)
 
 		// When
 		app.ServeHTTP(w, r)
@@ -161,70 +178,60 @@ func TestListClientApplications(t *testing.T) {
 }
 
 func TestListUsers(t *testing.T) {
+	// Given
+	eventStore := getStoreWithEvents(t,
+		goauth2.UserWasOnBoarded{
+			UserID:       userID,
+			Username:     username,
+			PasswordHash: passwordHash,
+		},
+		goauth2.UserWasGrantedAdministratorRole{
+			UserID:         userID,
+			GrantingUserID: userID,
+		},
+		goauth2.UserWasOnBoarded{
+			UserID:       userID2,
+			Username:     username2,
+			PasswordHash: passwordHash,
+		},
+		goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     web.ClientIDTODO,
+			ClientSecret: web.ClientSecretTODO,
+			RedirectURI:  redirectURI,
+			UserID:       userID,
+		},
+	)
+
+	goAuth2App, err := goauth2.New(goauth2.WithStore(eventStore))
+	require.NoError(t, err)
+	app := newApp(t,
+		web.WithGoAuth2App(goAuth2App),
+	)
+
+	loggedInCookies := loginAdminUser(t, app, username, password)
+
 	t.Run("list 2 users", func(t *testing.T) {
 		// Given
-		eventStore := getStoreWithEvents(t,
-			goauth2.UserWasOnBoarded{
-				UserID:       userID,
-				Username:     username,
-				PasswordHash: passwordHash,
-			},
-			goauth2.UserWasOnBoarded{
-				UserID:       userID2,
-				Username:     username2,
-				PasswordHash: passwordHash,
-			},
-		)
-
-		goAuth2App, err := goauth2.New(goauth2.WithStore(eventStore))
-		require.NoError(t, err)
-		app := newApp(t,
-			web.WithGoAuth2App(goAuth2App),
-		)
-
 		uri := url.URL{
 			Path: "/admin/list-users",
 		}
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+		addCookies(r, loggedInCookies)
 
 		// When
 		app.ServeHTTP(w, r)
 
 		// Then
-		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		require.Equal(t, http.StatusOK, w.Result().StatusCode, w.Body)
 		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
 		body := w.Body.String()
 		assert.Contains(t, body, userID)
 		assert.Contains(t, body, userID2)
-		assert.NotContains(t, body, "Admin")
 	})
 
-	t.Run("list includes admin users", func(t *testing.T) {
+	t.Run("redirects un-authenticated user to login page", func(t *testing.T) {
 		// Given
-		eventStore := getStoreWithEvents(t,
-			goauth2.UserWasOnBoarded{
-				UserID:       adminUserID,
-				Username:     username,
-				PasswordHash: passwordHash,
-			},
-			goauth2.UserWasOnBoarded{
-				UserID:       userID2,
-				Username:     username2,
-				PasswordHash: passwordHash,
-			},
-			goauth2.UserWasGrantedAdministratorRole{
-				UserID:         userID2,
-				GrantingUserID: adminUserID,
-			},
-		)
-
-		goAuth2App, err := goauth2.New(goauth2.WithStore(eventStore))
-		require.NoError(t, err)
-		app := newApp(t,
-			web.WithGoAuth2App(goAuth2App),
-		)
-
 		uri := url.URL{
 			Path: "/admin/list-users",
 		}
@@ -235,13 +242,75 @@ func TestListUsers(t *testing.T) {
 		app.ServeHTTP(w, r)
 
 		// Then
-		require.Equal(t, http.StatusOK, w.Result().StatusCode)
+		require.Equal(t, http.StatusSeeOther, w.Result().StatusCode)
 		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
-		body := w.Body.String()
-		assert.Contains(t, body, adminUserID)
-		assert.Contains(t, body, "Admin")
-		assert.Contains(t, body, userID2)
+
+		params := &url.Values{}
+		params.Set("redirect", "/admin/list-users")
+		expectedLocaiton := url.URL{
+			Path:     "/admin-login",
+			RawQuery: params.Encode(),
+		}
+		require.Equal(t, expectedLocaiton.String(), w.Header().Get("Location"))
 	})
+
+	t.Run("redirects authenticated, non-admin user to login page", func(t *testing.T) {
+		// Given
+		loggedInCookies := loginAdminUser(t, app, username2, password)
+		uri := url.URL{
+			Path: "/admin/list-users",
+		}
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+		addCookies(r, loggedInCookies)
+
+		// When
+		app.ServeHTTP(w, r)
+
+		// Then
+		require.Equal(t, http.StatusSeeOther, w.Result().StatusCode)
+		assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+
+		params := &url.Values{}
+		params.Set("redirect", "/admin/list-users")
+		expectedLocaiton := url.URL{
+			Path:     "/admin-login",
+			RawQuery: params.Encode(),
+		}
+		require.Equal(t, expectedLocaiton.String(), w.Header().Get("Location"))
+	})
+}
+
+func addCookies(r *http.Request, cookieLists ...[]*http.Cookie) {
+	for _, cookies := range cookieLists {
+		for _, cookie := range cookies {
+			r.AddCookie(cookie)
+		}
+	}
+}
+
+func loginAdminUser(t *testing.T, app http.Handler, username, password string) []*http.Cookie {
+	// Given
+	uri := url.URL{
+		Path: "/admin-login",
+	}
+	params := url.Values{}
+	params.Set("username", username)
+	params.Set("password", password)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, uri.String(), strings.NewReader(params.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
+
+	// When
+	app.ServeHTTP(w, r)
+
+	// Then
+	require.Equal(t, http.StatusSeeOther, w.Result().StatusCode)
+	assert.Equal(t, "HTTP/1.1", w.Result().Proto)
+	require.Len(t, w.Result().Cookies(), 1)
+	require.Equal(t, "/admin/list-users", w.Header().Get("Location"))
+
+	return w.Result().Cookies()
 }
 
 func TestAddUser(t *testing.T) {
@@ -257,6 +326,12 @@ func TestAddUser(t *testing.T) {
 			UserID:         adminUserID,
 			GrantingUserID: adminUserID,
 		},
+		goauth2.ClientApplicationWasOnBoarded{
+			ClientID:     web.ClientIDTODO,
+			ClientSecret: web.ClientSecretTODO,
+			RedirectURI:  redirectURI,
+			UserID:       adminUserID,
+		},
 	)
 	goAuth2App, err := goauth2.New(goauth2.WithStore(eventStore))
 	require.NoError(t, err)
@@ -265,6 +340,7 @@ func TestAddUser(t *testing.T) {
 		web.WithGoAuth2App(goAuth2App),
 		web.WithUUIDGenerator(uuidGenerator),
 	)
+	loggedInCookies := loginAdminUser(t, app, email, password)
 
 	t.Run("shows form", func(t *testing.T) {
 		// Given
@@ -273,6 +349,7 @@ func TestAddUser(t *testing.T) {
 		}
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
+		addCookies(r, loggedInCookies)
 
 		// When
 		app.ServeHTTP(w, r)
@@ -299,9 +376,7 @@ func TestAddUser(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, uri.String(), strings.NewReader(params.Encode()))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-			for _, cookie := range cookies {
-				r.AddCookie(cookie)
-			}
+			addCookies(r, loggedInCookies, cookies)
 
 			// When
 			app.ServeHTTP(w, r)
@@ -319,9 +394,7 @@ func TestAddUser(t *testing.T) {
 				}
 				w := httptest.NewRecorder()
 				r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
-				for _, cookie := range cookies {
-					r.AddCookie(cookie)
-				}
+				addCookies(r, cookies)
 
 				// When
 				app.ServeHTTP(w, r)
@@ -346,9 +419,7 @@ func TestAddUser(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodPost, uri.String(), strings.NewReader(params.Encode()))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded;")
-			for _, cookie := range cookies {
-				r.AddCookie(cookie)
-			}
+			addCookies(r, loggedInCookies, cookies)
 
 			// When
 			app.ServeHTTP(w, r)
@@ -366,9 +437,7 @@ func TestAddUser(t *testing.T) {
 				}
 				w := httptest.NewRecorder()
 				r := httptest.NewRequest(http.MethodGet, uri.String(), nil)
-				for _, cookie := range cookies {
-					r.AddCookie(cookie)
-				}
+				addCookies(r, cookies)
 
 				// When
 				app.ServeHTTP(w, r)
@@ -437,7 +506,7 @@ func TestAdmin_Login(t *testing.T) {
 	t.Run("serves login form", func(t *testing.T) {
 		// Given
 		uri := url.URL{
-			Path: "/admin/login",
+			Path: "/admin-login",
 		}
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, uri.String(), nil)

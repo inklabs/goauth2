@@ -22,8 +22,10 @@ import (
 )
 
 const (
-	accessTokenTODO = "f5bb89d486ee458085e476871b177ff4"
-	expiresAtTODO   = 1574371565
+	accessTokenTODO  = "f5bb89d486ee458085e476871b177ff4"
+	ClientIDTODO     = "8895e1e5f06644ebb41c26ea5740b246"
+	ClientSecretTODO = "c1e847aef925467290b4302e64f3de4e"
+	expiresAtTODO    = 1574371565
 )
 
 //go:embed static
@@ -544,6 +546,24 @@ func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data
 		http.Error(w, "500 Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+}
+
+func (a *webApp) authMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		session, _ := a.sessionStore.Get(r, sessionName)
+		if session.Values["isAdmin"] == true {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		params := &url.Values{}
+		params.Set("redirect", r.RequestURI)
+		loginUri := url.URL{
+			Path:     "/admin-login",
+			RawQuery: params.Encode(),
+		}
+		http.Redirect(w, r, loginUri.String(), http.StatusSeeOther)
+	})
 }
 
 type errorResponse struct {
