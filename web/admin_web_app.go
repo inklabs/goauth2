@@ -11,6 +11,7 @@ import (
 	"github.com/inklabs/goauth2"
 )
 
+// AdminUserIDTODO temporary ID that will be replaced with a value from a JWT or session.
 const AdminUserIDTODO = "873aeb9386724213b4c1410bce9f838c"
 
 func (a *webApp) addAdminRoutes(r *mux.Router) {
@@ -29,7 +30,7 @@ func (a *webApp) addAdminRoutes(r *mux.Router) {
 	admin.Use(csrfMiddleware)
 }
 
-type ClientApplication struct {
+type clientApplication struct {
 	ClientID        string
 	ClientSecret    string
 	CreateTimestamp uint64
@@ -37,18 +38,18 @@ type ClientApplication struct {
 
 type listClientApplicationsTemplateVars struct {
 	flashMessageVars
-	ClientApplications []ClientApplication
+	ClientApplications []clientApplication
 }
 
 func (a *webApp) listClientApplications(w http.ResponseWriter, _ *http.Request) {
 
-	var clientApplications []ClientApplication
+	var clientApplications []clientApplication
 
-	for _, clientApplication := range a.projections.clientApplications.GetAll() {
-		clientApplications = append(clientApplications, ClientApplication{
-			ClientID:        clientApplication.ClientID,
-			ClientSecret:    clientApplication.ClientSecret,
-			CreateTimestamp: clientApplication.CreateTimestamp,
+	for _, ca := range a.projections.clientApplications.GetAll() {
+		clientApplications = append(clientApplications, clientApplication{
+			ClientID:        ca.ClientID,
+			ClientSecret:    ca.ClientSecret,
+			CreateTimestamp: ca.CreateTimestamp,
 		})
 	}
 
@@ -62,7 +63,7 @@ type flashMessageVars struct {
 	Messages []string
 }
 
-type User struct {
+type resourceOwnerUser struct {
 	UserID                      string
 	Username                    string
 	GrantingUserID              string
@@ -73,15 +74,15 @@ type User struct {
 
 type listUsersTemplateVars struct {
 	flashMessageVars
-	Users []User
+	Users []resourceOwnerUser
 }
 
 func (a *webApp) listUsers(w http.ResponseWriter, r *http.Request) {
 
-	var users []User
+	var users []resourceOwnerUser
 
 	for _, user := range a.projections.users.GetAll() {
-		users = append(users, User{
+		users = append(users, resourceOwnerUser{
 			UserID:                      user.UserID,
 			Username:                    user.Username,
 			GrantingUserID:              user.GrantingUserID,

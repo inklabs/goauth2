@@ -7,7 +7,7 @@ import (
 	"github.com/inklabs/goauth2"
 )
 
-var FuncMap = template.FuncMap{
+var funcMap = template.FuncMap{
 	"formatDate": formatDate,
 	"goAuth2Version": func() string {
 		return goauth2.Version

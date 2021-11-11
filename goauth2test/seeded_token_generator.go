@@ -5,6 +5,7 @@ type seededTokenGenerator struct {
 	index int
 }
 
+// NewSeededTokenGenerator constructs a seededTokenGenerator
 func NewSeededTokenGenerator(codes ...string) *seededTokenGenerator {
 	return &seededTokenGenerator{codes: codes}
 }

@@ -49,7 +49,7 @@ func TestEmailToUserID_Accept(t *testing.T) {
 
 		// Then
 		assert.Equal(t, "", actualUserID)
-		assert.Equal(t, err, projection.UserNotFound)
+		assert.Equal(t, err, projection.ErrUserNotFound)
 	})
 
 	t.Run("can get userID from email with duplicate email", func(t *testing.T) {

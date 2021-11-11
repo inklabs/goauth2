@@ -14,6 +14,7 @@ func newAuthorizationCodeProcessManager(commandDispatcher CommandDispatcher) *au
 	}
 }
 
+// Accept receives a rangedb.Record.
 func (r *authorizationCodeProcessManager) Accept(record *rangedb.Record) {
 	switch event := record.Data.(type) {
 	case *AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant:

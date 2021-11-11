@@ -34,6 +34,7 @@ var templates embed.FS
 
 const defaultHost = "0.0.0.0:8080"
 
+// SessionKeyPair holds the keys for a secure cookie session.
 type SessionKeyPair struct {
 	AuthenticationKey []byte
 	EncryptionKey     []byte
@@ -203,7 +204,7 @@ func (a *webApp) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (a *webApp) login(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
-	clientId := params.Get("client_id")
+	clientID := params.Get("client_id")
 	redirectURI := params.Get("redirect_uri")
 	responseType := params.Get("response_type")
 	state := params.Get("state")
@@ -211,13 +212,13 @@ func (a *webApp) login(w http.ResponseWriter, r *http.Request) {
 
 	a.renderTemplate(w, "login.gohtml", struct {
 		flashMessageVars
-		ClientId     string
+		ClientID     string
 		RedirectURI  string
 		ResponseType string
 		Scope        string
 		State        string
 	}{
-		ClientId:         clientId,
+		ClientID:         clientID,
 		RedirectURI:      redirectURI,
 		ResponseType:     responseType,
 		Scope:            scope,
@@ -347,6 +348,7 @@ func (a *webApp) handleImplicitGrant(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, uri, http.StatusFound)
 }
 
+// AccessTokenResponse holds the JSON response for an access token.
 type AccessTokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	ExpiresAt    int64  `json:"expires_at"`
@@ -411,7 +413,7 @@ func (a *webApp) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request,
 		nextRefreshToken = refreshTokenEvent.NextRefreshToken
 	}
 
-	writeJsonResponse(w, AccessTokenResponse{
+	writeJSONResponse(w, AccessTokenResponse{
 		AccessToken:  "61272356284f4340b2b1f3f1400ad4d9",
 		ExpiresAt:    accessTokenEvent.ExpiresAt,
 		TokenType:    "Bearer",
@@ -455,7 +457,7 @@ func (a *webApp) handleROPCGrant(w http.ResponseWriter, r *http.Request, clientI
 		refreshToken = refreshTokenEvent.RefreshToken
 	}
 
-	writeJsonResponse(w, AccessTokenResponse{
+	writeJSONResponse(w, AccessTokenResponse{
 		AccessToken:  accessTokenTODO,
 		ExpiresAt:    accessTokenEvent.ExpiresAt,
 		TokenType:    "Bearer",
@@ -477,7 +479,7 @@ func (a *webApp) handleClientCredentialsGrant(w http.ResponseWriter, clientID, c
 		return
 	}
 
-	writeJsonResponse(w, AccessTokenResponse{
+	writeJSONResponse(w, AccessTokenResponse{
 		AccessToken: accessTokenTODO,
 		ExpiresAt:   accessTokenIssuedEvent.ExpiresAt,
 		TokenType:   "Bearer",
@@ -517,7 +519,7 @@ func (a *webApp) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *htt
 		refreshToken = refreshTokenIssuedEvent.RefreshToken
 	}
 
-	writeJsonResponse(w, AccessTokenResponse{
+	writeJSONResponse(w, AccessTokenResponse{
 		AccessToken:  accessTokenTODO,
 		ExpiresAt:    accessTokenIssuedEvent.ExpiresAt,
 		TokenType:    "Bearer",
@@ -529,7 +531,7 @@ func (a *webApp) handleAuthorizationCodeTokenGrant(w http.ResponseWriter, r *htt
 
 func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data interface{}) {
 	baseTemplateName := path.Base(templateName)
-	tmpl, err := template.New(baseTemplateName).Funcs(FuncMap).ParseFS(a.templateFS, "templates/layout/*.gohtml", "templates/"+templateName)
+	tmpl, err := template.New(baseTemplateName).Funcs(funcMap).ParseFS(a.templateFS, "templates/layout/*.gohtml", "templates/"+templateName)
 	if err != nil {
 		log.Printf("unable to parse template %s: %v", templateName, err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -554,20 +556,20 @@ func writeInvalidRequestResponse(w http.ResponseWriter) {
 
 func writeInvalidClientResponse(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusUnauthorized)
-	writeJsonResponse(w, errorResponse{Error: "invalid_client"})
+	writeJSONResponse(w, errorResponse{Error: "invalid_client"})
 }
 
 func writeInvalidGrantResponse(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusUnauthorized)
-	writeJsonResponse(w, errorResponse{Error: "invalid_grant"})
+	writeJSONResponse(w, errorResponse{Error: "invalid_grant"})
 }
 
 func writeUnsupportedGrantTypeResponse(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusBadRequest)
-	writeJsonResponse(w, errorResponse{Error: "unsupported_grant_type"})
+	writeJSONResponse(w, errorResponse{Error: "unsupported_grant_type"})
 }
 
-func writeJsonResponse(w http.ResponseWriter, jsonBody interface{}) {
+func writeJSONResponse(w http.ResponseWriter, jsonBody interface{}) {
 	bytes, err := json.Marshal(jsonBody)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)

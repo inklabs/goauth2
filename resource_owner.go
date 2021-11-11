@@ -15,6 +15,7 @@ const (
 	ropcGrantLifetime              = 1 * time.Hour
 )
 
+// ResourceOwnerCommandTypes returns all command types goauth2.resourceOwner supports.
 func ResourceOwnerCommandTypes() []string {
 	return []string{
 		GrantUserAdministratorRole{}.CommandType(),

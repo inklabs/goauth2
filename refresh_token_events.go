@@ -3,6 +3,7 @@ package goauth2
 //go:generate go run github.com/inklabs/rangedb/gen/eventgenerator -id RefreshToken -aggregateType refresh-token
 
 // RequestAccessTokenViaRefreshTokenGrant Events
+
 type RefreshTokenWasIssuedToUser struct {
 	RefreshToken string `json:"refreshToken"`
 	UserID       string `json:"userID"`

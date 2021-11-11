@@ -3,6 +3,7 @@ package goauth2
 //go:generate go run github.com/inklabs/rangedb/gen/eventgenerator -id ClientID -aggregateType client-application
 
 // OnBoardClientApplication Events
+
 type ClientApplicationWasOnBoarded struct {
 	ClientID     string `json:"clientID"`
 	ClientSecret string `json:"clientSecret"`
@@ -23,6 +24,7 @@ type OnBoardClientApplicationWasRejectedDueToInvalidRedirectURI struct {
 }
 
 // RequestAccessTokenViaClientCredentialsGrant Events
+
 type AccessTokenWasIssuedToClientApplicationViaClientCredentialsGrant struct {
 	ClientID  string `json:"clientID"`
 	ExpiresAt int64  `json:"expiresAt"`

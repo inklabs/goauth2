@@ -10,6 +10,7 @@ import (
 
 const clientApplicationGrantLifetime = 1 * time.Hour
 
+// ClientApplicationCommandTypes returns all command types goauth2.clientApplication supports.
 func ClientApplicationCommandTypes() []string {
 	return []string{
 		OnBoardClientApplication{}.CommandType(),

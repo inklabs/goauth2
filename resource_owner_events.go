@@ -3,6 +3,7 @@ package goauth2
 //go:generate go run github.com/inklabs/rangedb/gen/eventgenerator -id UserID -aggregateType resource-owner
 
 // OnBoardUser Events
+
 type UserWasOnBoarded struct {
 	UserID         string `json:"userID"`
 	Username       string `json:"username"`
@@ -23,6 +24,7 @@ type OnBoardUserWasRejectedDueToInsecurePassword struct {
 }
 
 // GrantUserAdministratorRole Events
+
 type UserWasGrantedAdministratorRole struct {
 	UserID         string `json:"userID"`
 	GrantingUserID string `json:"grantingUserID"`
@@ -41,6 +43,7 @@ type GrantUserAdministratorRoleWasRejectedDueToNonAdministrator struct {
 }
 
 // AuthorizeUserToOnBoardClientApplications Events
+
 type UserWasAuthorizedToOnBoardClientApplications struct {
 	UserID            string `json:"userID"`
 	AuthorizingUserID string `json:"authorizingUserID"`
@@ -59,6 +62,7 @@ type AuthorizeUserToOnBoardClientApplicationsWasRejectedDueToNonAdministrator st
 }
 
 // RequestAccessTokenViaImplicitGrant Events
+
 type AccessTokenWasIssuedToUserViaImplicitGrant struct {
 	UserID   string `json:"userID"`
 	ClientID string `json:"clientID"`
@@ -82,6 +86,7 @@ type RequestAccessTokenViaImplicitGrantWasRejectedDueToInvalidUserPassword struc
 }
 
 // RequestAccessTokenViaROPCGrant Events
+
 type AccessTokenWasIssuedToUserViaROPCGrant struct {
 	UserID    string `json:"userID"`
 	ClientID  string `json:"clientID"`
@@ -108,6 +113,7 @@ type RequestAccessTokenViaROPCGrantWasRejectedDueToInvalidClientApplicationCrede
 }
 
 // RequestAuthorizationCodeViaAuthorizationCodeGrant Events
+
 type AuthorizationCodeWasIssuedToUserViaAuthorizationCodeGrant struct {
 	UserID            string `json:"userID"`
 	ClientID          string `json:"clientID"`

@@ -15,17 +15,20 @@ type clientApplication struct {
 	CreateTimestamp uint64
 }
 
+// ClientApplications is a projection containing a list of all client applications.
 type ClientApplications struct {
 	mu                 sync.RWMutex
 	clientApplications map[string]*clientApplication
 }
 
+// NewClientApplications constructs a new ClientApplications projection.
 func NewClientApplications() *ClientApplications {
 	return &ClientApplications{
 		clientApplications: make(map[string]*clientApplication),
 	}
 }
 
+// Accept receives a rangedb.Record.
 func (a *ClientApplications) Accept(record *rangedb.Record) {
 	event, ok := record.Data.(*goauth2.ClientApplicationWasOnBoarded)
 	if ok {

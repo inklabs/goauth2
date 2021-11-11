@@ -1600,6 +1600,7 @@ type eventRecorder struct {
 	Records []*rangedb.Record
 }
 
+// Accept receives a rangedb.Record.
 func (e *eventRecorder) Accept(record *rangedb.Record) {
 	e.Records = append(e.Records, record)
 }

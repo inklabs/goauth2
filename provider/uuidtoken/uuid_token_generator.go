@@ -6,6 +6,7 @@ import (
 
 type uuidTokenGenerator struct{}
 
+// NewGenerator constructs a new uuidTokenGenerator.
 func NewGenerator() *uuidTokenGenerator {
 	return &uuidTokenGenerator{}
 }

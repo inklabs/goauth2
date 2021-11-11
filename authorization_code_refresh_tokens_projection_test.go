@@ -99,7 +99,7 @@ func TestAuthorizationCodeRefreshTokens(t *testing.T) {
 		assert.Equal(t, []string(nil), authorizationCodeRefreshTokens.GetTokens(authorizationCode))
 		actualAuthorizationCode, err := authorizationCodeRefreshTokens.GetAuthorizationCode(refreshToken1)
 		assert.Equal(t, "", actualAuthorizationCode)
-		assert.Equal(t, goauth2.AuthorizationCodeNotFound, err)
+		assert.Equal(t, goauth2.ErrAuthorizationCodeNotFound, err)
 	})
 
 	t.Run("remove two revoked tokens to avoid memory leak", func(t *testing.T) {
@@ -139,9 +139,9 @@ func TestAuthorizationCodeRefreshTokens(t *testing.T) {
 		// Then
 		assert.Equal(t, []string(nil), authorizationCodeRefreshTokens.GetTokens(authorizationCode))
 		actualAuthorizationCode1, err := authorizationCodeRefreshTokens.GetAuthorizationCode(refreshToken1)
-		assert.Equal(t, goauth2.AuthorizationCodeNotFound, err)
+		assert.Equal(t, goauth2.ErrAuthorizationCodeNotFound, err)
 		actualAuthorizationCode2, err := authorizationCodeRefreshTokens.GetAuthorizationCode(refreshToken2)
-		assert.Equal(t, goauth2.AuthorizationCodeNotFound, err)
+		assert.Equal(t, goauth2.ErrAuthorizationCodeNotFound, err)
 		assert.Equal(t, "", actualAuthorizationCode1)
 		assert.Equal(t, "", actualAuthorizationCode2)
 	})
@@ -156,7 +156,7 @@ func TestAuthorizationCodeRefreshTokens(t *testing.T) {
 		// Then
 		assert.Equal(t, []string(nil), tokens)
 		actualAuthorizationCode, err := authorizationCodeRefreshTokens.GetAuthorizationCode(refreshToken1)
-		assert.Equal(t, goauth2.AuthorizationCodeNotFound, err)
+		assert.Equal(t, goauth2.ErrAuthorizationCodeNotFound, err)
 		assert.Equal(t, "", actualAuthorizationCode)
 	})
 }

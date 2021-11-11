@@ -15,6 +15,7 @@ import (
 // Version for Go OAuth2.
 const Version = "0.1.0-dev"
 
+// TokenGenerator defines a token generator for refresh tokens and authorization codes.
 type TokenGenerator interface {
 	New() string
 }
@@ -116,6 +117,7 @@ func (a *App) registerCommandHandler(commandTypes []string, factory CommandHandl
 	}
 }
 
+// Dispatch dispatches a command returning all persisted rangedb.Event's.
 func (a *App) Dispatch(command Command) []rangedb.Event {
 	var preHandlerEvents []rangedb.Event
 
@@ -190,6 +192,7 @@ func (a *App) savePendingEvents(events PendingEvents) []rangedb.Event {
 	return pendingEvents
 }
 
+// SubscribeAndReplay subscribes and replays all events starting with zero.
 func (a *App) SubscribeAndReplay(subscribers ...rangedb.RecordSubscriber) error {
 	ctx := context.Background()
 	subscription := a.store.AllEventsSubscription(ctx, 50, newMultipleSubscriber(subscribers...))
@@ -219,6 +222,7 @@ func newMultipleSubscriber(subscribers ...rangedb.RecordSubscriber) *multipleSub
 	}
 }
 
+// Accept receives a rangedb.Record.
 func (m multipleSubscriber) Accept(record *rangedb.Record) {
 	for _, subscriber := range m.subscribers {
 		subscriber.Accept(record)

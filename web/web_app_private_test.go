@@ -13,12 +13,12 @@ import (
 func Test_writeJsonResponse_FailsFromInvalidJson(t *testing.T) {
 	// Given
 	w := httptest.NewRecorder()
-	invalidJson := map[string]float64{
+	invalidJSON := map[string]float64{
 		"foo": math.Inf(1),
 	}
 
 	// When
-	writeJsonResponse(w, invalidJson)
+	writeJSONResponse(w, invalidJSON)
 
 	// Then
 	body := w.Body.String()

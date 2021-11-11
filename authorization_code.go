@@ -5,6 +5,7 @@ import (
 	"github.com/inklabs/rangedb/pkg/clock"
 )
 
+// AuthorizationCodeCommandTypes returns all command types goauth2.authorizationCode supports.
 func AuthorizationCodeCommandTypes() []string {
 	return []string{
 		RequestAccessTokenViaAuthorizationCodeGrant{}.CommandType(),

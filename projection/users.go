@@ -18,17 +18,20 @@ type user struct {
 	CanOnboardAdminApplications bool
 }
 
+// Users is a projection containing a list of all users.
 type Users struct {
 	mu    sync.RWMutex
 	users map[string]*user
 }
 
+// NewUsers constructs a new Users projection.
 func NewUsers() *Users {
 	return &Users{
 		users: make(map[string]*user),
 	}
 }
 
+// Accept receives a rangedb.Record.
 func (a *Users) Accept(record *rangedb.Record) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -56,7 +59,7 @@ func (a *Users) Accept(record *rangedb.Record) {
 	}
 }
 
-// GetAll returns users sorted by most recent creation timestamp
+// GetAll returns users sorted by most recent creation timestamp.
 func (a *Users) GetAll() []*user {
 	a.mu.RLock()
 

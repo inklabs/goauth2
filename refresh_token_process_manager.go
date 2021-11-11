@@ -19,6 +19,7 @@ func newRefreshTokenProcessManager(
 	}
 }
 
+// Accept receives a rangedb.Record.
 func (r *refreshTokenProcessManager) Accept(record *rangedb.Record) {
 	switch event := record.Data.(type) {
 

@@ -6,11 +6,13 @@ import (
 	"github.com/inklabs/rangedb"
 )
 
+// AuthorizationCodeRefreshTokens is a projection mapping authorization codes to refresh tokens.
 type AuthorizationCodeRefreshTokens struct {
 	refreshTokensByAuthorizationCode map[string][]string
 	authorizationCodeByRefreshToken  map[string]string
 }
 
+// NewAuthorizationCodeRefreshTokens constructs an AuthorizationCodeRefreshTokens projection.
 func NewAuthorizationCodeRefreshTokens() *AuthorizationCodeRefreshTokens {
 	return &AuthorizationCodeRefreshTokens{
 		refreshTokensByAuthorizationCode: make(map[string][]string),
@@ -18,6 +20,7 @@ func NewAuthorizationCodeRefreshTokens() *AuthorizationCodeRefreshTokens {
 	}
 }
 
+// Accept receives a rangedb.Record.
 func (a *AuthorizationCodeRefreshTokens) Accept(record *rangedb.Record) {
 	switch event := record.Data.(type) {
 
@@ -37,16 +40,18 @@ func (a *AuthorizationCodeRefreshTokens) Accept(record *rangedb.Record) {
 	}
 }
 
+// GetTokens returns all refresh tokens by authorizationCode.
 func (a *AuthorizationCodeRefreshTokens) GetTokens(authorizationCode string) []string {
 	return a.refreshTokensByAuthorizationCode[authorizationCode]
 }
 
+// GetAuthorizationCode returns a single authorization code from a refresh token.
 func (a *AuthorizationCodeRefreshTokens) GetAuthorizationCode(refreshToken string) (string, error) {
 	if authorizationCode, ok := a.authorizationCodeByRefreshToken[refreshToken]; ok {
 		return authorizationCode, nil
 	}
 
-	return "", AuthorizationCodeNotFound
+	return "", ErrAuthorizationCodeNotFound
 }
 
 func (a *AuthorizationCodeRefreshTokens) addRefreshToken(authorizationCode, refreshToken string) {
@@ -65,4 +70,5 @@ func (a *AuthorizationCodeRefreshTokens) removeRefreshTokens(authorizationCode s
 	delete(a.refreshTokensByAuthorizationCode, authorizationCode)
 }
 
-var AuthorizationCodeNotFound = fmt.Errorf("authorization code not found")
+// ErrAuthorizationCodeNotFound is a defined error for missing authorization code.
+var ErrAuthorizationCodeNotFound = fmt.Errorf("authorization code not found")

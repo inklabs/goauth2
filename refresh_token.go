@@ -9,6 +9,7 @@ import (
 
 const refreshTokenGrantLifetime = 1 * time.Hour
 
+// RefreshTokenCommandTypes returns all command types goauth2.refreshToken supports.
 func RefreshTokenCommandTypes() []string {
 	return []string{
 		RequestAccessTokenViaRefreshTokenGrant{}.CommandType(),
