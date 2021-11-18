@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -172,6 +173,7 @@ func (a *webApp) initSessionStore() error {
 		)
 	}
 
+	gob.Register(AuthenticatedUser{})
 	a.sessionStore = sessions.NewCookieStore(keyPairs...)
 	return nil
 }
@@ -548,30 +550,16 @@ func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data
 	}
 }
 
-func (a *webApp) adminAuthorization(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session, _ := a.sessionStore.Get(r, sessionName)
-		if session.Values["isAdmin"] == true {
-			h.ServeHTTP(w, r)
-			return
-		}
-
-		params := &url.Values{}
-		params.Set("redirect", r.RequestURI)
-		loginUri := url.URL{
-			Path:     "/admin-login",
-			RawQuery: params.Encode(),
-		}
-		http.Redirect(w, r, loginUri.String(), http.StatusSeeOther)
-	})
-}
-
 type errorResponse struct {
 	Error string `json:"error"`
 }
 
 func writeInvalidRequestResponse(w http.ResponseWriter) {
 	http.Error(w, "invalid request", http.StatusBadRequest)
+}
+
+func writeInternalServerErrorResponse(w http.ResponseWriter) {
+	http.Error(w, "invalid request", http.StatusInternalServerError)
 }
 
 func writeInvalidClientResponse(w http.ResponseWriter) {

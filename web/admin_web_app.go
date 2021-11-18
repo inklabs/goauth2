@@ -2,7 +2,6 @@ package web
 
 import (
 	"html/template"
-	"log"
 	"net/http"
 	"net/url"
 
@@ -152,14 +151,14 @@ func (a *webApp) submitAdminLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, _ := a.sessionStore.Get(r, sessionName)
-	session.Values["userID"] = userID
-	session.Values["username"] = username
-	session.Values["isAdmin"] = user.IsAdmin
-	err = session.Save(r, w)
+	authenticatedUser := AuthenticatedUser{
+		UserID:   userID,
+		Username: user.Username,
+		IsAdmin:  user.IsAdmin,
+	}
+	err = a.setAuthenticatedUser(w, r, authenticatedUser)
 	if err != nil {
-		writeInvalidRequestResponse(w)
-		log.Print("save session")
+		writeInternalServerErrorResponse(w)
 		return
 	}
 
@@ -210,16 +209,18 @@ func (a *webApp) submitAddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Get access to well defined user struct from session
-	session, _ := a.sessionStore.Get(r, sessionName)
-	grantingUserID := session.Values["userID"].(string)
+	authenticatedUser, err := a.getAuthenticatedUser(r)
+	if err != nil {
+		writeInternalServerErrorResponse(w)
+		return
+	}
 
 	userID := a.uuidGenerator.New()
 	events := SavedEvents(a.goAuth2App.Dispatch(goauth2.OnBoardUser{
 		UserID:         userID,
 		Username:       username,
 		Password:       password,
-		GrantingUserID: grantingUserID,
+		GrantingUserID: authenticatedUser.UserID,
 	}))
 	var userWasOnBoarded goauth2.UserWasOnBoarded
 	if !events.Get(&userWasOnBoarded) {
@@ -236,4 +237,52 @@ func (a *webApp) submitAddUser(w http.ResponseWriter, r *http.Request) {
 		Path: "/admin/list-users",
 	}
 	http.Redirect(w, r, uri.String(), http.StatusFound)
+}
+
+type AuthenticatedUser struct {
+	UserID   string
+	Username string
+	IsAdmin  bool
+}
+
+func (a *webApp) getAuthenticatedUser(r *http.Request) (AuthenticatedUser, error) {
+	session, err := a.sessionStore.Get(r, sessionName)
+	if err != nil {
+		return AuthenticatedUser{}, err
+	}
+
+	if user, ok := session.Values["user"].(AuthenticatedUser); ok {
+		return user, nil
+	}
+
+	return AuthenticatedUser{}, err
+}
+
+func (a *webApp) setAuthenticatedUser(w http.ResponseWriter, r *http.Request, user AuthenticatedUser) error {
+	session, err := a.sessionStore.Get(r, sessionName)
+	if err != nil {
+		return err
+	}
+
+	session.Values["user"] = user
+
+	return session.Save(r, w)
+}
+
+func (a *webApp) adminAuthorization(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authenticatedUser, err := a.getAuthenticatedUser(r)
+		if err == nil && authenticatedUser.IsAdmin {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		params := &url.Values{}
+		params.Set("redirect", r.RequestURI)
+		loginUri := url.URL{
+			Path:     "/admin-login",
+			RawQuery: params.Encode(),
+		}
+		http.Redirect(w, r, loginUri.String(), http.StatusSeeOther)
+	})
 }
