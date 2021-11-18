@@ -548,7 +548,7 @@ func (a *webApp) renderTemplate(w http.ResponseWriter, templateName string, data
 	}
 }
 
-func (a *webApp) authMiddleware(h http.Handler) http.Handler {
+func (a *webApp) adminAuthorization(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, _ := a.sessionStore.Get(r, sessionName)
 		if session.Values["isAdmin"] == true {

@@ -28,7 +28,7 @@ func (a *webApp) addAdminRoutes(r *mux.Router) {
 	admin.HandleFunc("/list-users", a.listUsers)
 	admin.HandleFunc("/list-client-applications", a.listClientApplications)
 	admin.Use(
-		a.authMiddleware,
+		a.adminAuthorization,
 		csrfMiddleware,
 	)
 }
